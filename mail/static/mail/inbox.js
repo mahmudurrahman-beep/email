@@ -357,8 +357,13 @@ function renderEmailView(email, container, currentMailbox) {
     restoreBtn.addEventListener('click', () => {
       updateEmail(email.id, { deleted: false })
         .then(() => {
-          // If the current user owns the row and is the sender, restore to Sent; otherwise restore to Inbox
-          if (isOwner && email.sender === currentUserEmail) {
+          // If the email was archived before deletion, restore back to Archive.
+          // Otherwise, if the current user owns the row and is the sender, restore to Sent; otherwise restore to Inbox.
+          if (email.archived) {
+            show_notification('Restored to Archive', 'success');
+            load_mailbox('archive');
+            setActiveNav('archived');
+          } else if (isOwner && email.sender === currentUserEmail) {
             show_notification('Restored to Sent', 'success');
             load_mailbox('sent');
             setActiveNav('sent');
