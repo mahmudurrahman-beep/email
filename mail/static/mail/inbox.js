@@ -150,84 +150,98 @@ function load_mailbox(mailbox) {
 /**
  * Email Detail View
  */
-function view_email(email_id, mailbox) {
-    show_view('email');
-    const view = document.querySelector('#email-view');
-    view.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+/* Email Detail Layout */
+.email-detail-container {
+    background: #fff;
+    border-radius: 12px;
+    padding: 0;
+    overflow: hidden;
+}
 
-    fetch(`/emails/${email_id}`)
-    .then(response => response.json())
-    .then(email => {
-        // Mark as Read
-        if (!email.read) {
-            fetch(`/emails/${email_id}`, {
-                method: 'PUT',
-                body: JSON.stringify({ read: true })
-            });
-        }
+/* Professional Toolbar */
+.email-detail-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 20px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #dadce0;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
 
-        view.innerHTML = '';
-        const container = document.createElement('div');
-        container.className = 'email-detail-container';
+.actions-group {
+    display: flex;
+    gap: 10px;
+}
 
-        // Buttons Logic
-        const isTrash = (mailbox === 'trash' || email.deleted);
-        const archiveText = email.archived ? 'Unarchive' : 'Archive';
-        const trashText = isTrash ? 'Restore' : 'Move to Trash';
+/* Modern Buttons */
+.btn-action {
+    padding: 8px 16px;
+    border-radius: 6px;
+    border: 1px solid #dadce0;
+    background: #fff;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s, box-shadow 0.2s;
+}
 
-        container.innerHTML = `
-            <div class="email-detail-header">
-                <button class="btn-action" id="btn-back">← Back</button>
-                <button class="btn-action btn-reply" id="btn-reply">Reply</button>
-                <button class="btn-action" id="btn-archive">${archiveText}</button>
-                <button class="btn-action" id="btn-trash" style="color: #d93025">${trashText}</button>
-                ${isTrash ? '<button class="btn-action" id="btn-perm-delete" style="color: #701516">Delete Permanently</button>' : ''}
-            </div>
-            <div class="email-header">
-                <div class="email-header-row"><span class="header-label">From:</span> ${escapeHtml(email.sender)}</div>
-                <div class="email-header-row"><span class="header-label">To:</span> ${escapeHtml(email.recipients.join(', '))}</div>
-                <div class="email-header-row"><span class="header-label">Subject:</span> ${escapeHtml(email.subject)}</div>
-                <div class="email-header-row"><span class="header-label">Date:</span> ${email.timestamp}</div>
-            </div>
-            <div class="email-body">${escapeHtml(email.body)}</div>
-        `;
+.btn-action:hover {
+    background: #f1f3f4;
+    border-color: #bdc1c6;
+}
 
-        view.append(container);
+.btn-reply {
+    background: #1a73e8;
+    color: #fff;
+    border: none;
+}
 
-        // Listeners
-        document.querySelector('#btn-back').onclick = () => load_mailbox(mailbox);
-        
-        document.querySelector('#btn-reply').onclick = () => {
-            compose_email({
-                recipients: email.sender,
-                subject: email.subject.startsWith('Re:') ? email.subject : `Re: ${email.subject}`,
-                body: `\n\n--- On ${email.timestamp} ${email.sender} wrote:\n${email.body}`
-            });
-        };
+.btn-reply:hover {
+    background: #1765cc;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
 
-        document.querySelector('#btn-archive').onclick = () => {
-            fetch(`/emails/${email_id}`, {
-                method: 'PUT',
-                body: JSON.stringify({ archived: !email.archived })
-            }).then(() => load_mailbox('inbox'));
-        };
+.btn-danger {
+    color: #d93025;
+}
 
-        document.querySelector('#btn-trash').onclick = () => {
-            fetch(`/emails/${email_id}`, {
-                method: 'PUT',
-                body: JSON.stringify({ deleted: !email.deleted })
-            }).then(() => load_mailbox('inbox'));
-        };
+.btn-danger:hover {
+    background: #fce8e6;
+    border-color: #f5c2c7;
+}
 
-        if (isTrash && document.querySelector('#btn-perm-delete')) {
-            document.querySelector('#btn-perm-delete').onclick = () => {
-                if (confirm("Delete this email forever? This cannot be undone.")) {
-                    fetch(`/emails/${email_id}`, { method: 'DELETE' })
-                    .then(() => load_mailbox('trash'));
-                }
-            };
-        }
-    });
+.btn-perm {
+    background: #701516;
+    color: white;
+    border: none;
+}
+
+/* Email Content Styling */
+.email-header-card {
+    padding: 24px;
+    border-bottom: 1px solid #f1f3f4;
+}
+
+.email-header-row {
+    margin-bottom: 8px;
+    font-size: 15px;
+    color: #3c4043;
+}
+
+.email-body-content {
+    padding: 24px;
+    font-size: 16px;
+    line-height: 1.6;
+    color: #202124;
+    white-space: pre-wrap;
+}
+
+/* Sidebar Trash button fix */
+#trash {
+    display: flex !important; /* Ensure it is visible */
 }
 
 /**
