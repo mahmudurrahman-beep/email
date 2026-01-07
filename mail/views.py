@@ -65,9 +65,11 @@ def mailbox(request, mailbox):
     if mailbox == "inbox":
         emails = Email.objects.filter(user=request.user, recipients=request.user, archived=False, deleted=False)
     elif mailbox == "sent":
-        emails = Email.objects.filter(user=request.user, sender=request.user, deleted=False)
+        # Exclude archived messages from Sent so archived sent items no longer remain in Sent
+        emails = Email.objects.filter(user=request.user, sender=request.user, archived=False, deleted=False)
     elif mailbox == "archive":
-        # Include archived copies where the current user is either a recipient OR the sender (so sent items archived by sender show up)
+        # Include archived copies where the current user is either a recipient OR the sender
+        from django.db.models import Q
         emails = Email.objects.filter(user=request.user, archived=True, deleted=False).filter(Q(recipients=request.user) | Q(sender=request.user))
     elif mailbox == "trash":
         emails = Email.objects.filter(user=request.user, deleted=True)
