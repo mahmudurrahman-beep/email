@@ -269,3 +269,17 @@ body.no-sidebar .content-area { background: #ffffff !important; }
   outline: 3px solid rgba(26,115,232,0.12);
   outline-offset: 3px;
 }
+
+/* Hide archive and mark buttons in Trash view (keeps UI clean) */
+body.trash-view #archive-btn,
+body.trash-view #mark-btn {
+  display: none !important;
+}
+
+/* Optional: slightly emphasize Restore button in Trash */
+body.trash-view #restore-btn {
+  background: #fff;
+  border: 1px solid var(--border);
+  color: var(--text-medium);
+  font-weight: 600;
+}
