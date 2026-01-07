@@ -1,160 +1,238 @@
-// static/mail/inbox.js
+/**
+ * static/mail/inbox.js
+ * Full implementation with Click Listeners and Sent-folder design fixes.
+ */
 
 const MESSAGES = {
-    send: { sending: 'Sending...', sent: 'Email sent.', failed: 'Failed to send email.' },
+    send: { sending: 'Sending...', sent: 'Email sent successfully.', failed: 'Failed to send email.' },
     validation: { noRecipient: 'Please enter at least one recipient.' },
     load: { loading: (mb) => `Loading ${mb}...`, failed: (mb) => `Failed to load ${mb}.` },
     archive: { archived: 'Archived', unarchived: 'Moved to Inbox', failed: 'Update failed' },
-    trash: { moved: 'Moved to Trash', restored: 'Restored', permDeleted: 'Deleted permanently' },
-    compose: { newEmail: 'New Email' }
+    trash: { moved: 'Moved to Trash', restored: 'Restored', permDeleted: 'Permanently deleted' },
+    mark: { read: 'Marked read', unread: 'Marked unread' }
 };
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Basic Layout Check
+    if (!document.querySelector('.sidebar')) document.body.classList.add('no-sidebar');
+    
     initApp();
 });
 
 function initApp() {
     setupNavigation();
     setupComposeForm();
+    
+    // Default view
     load_mailbox('inbox');
+    setActiveNav('inbox');
 }
 
+/**
+ * Navigation Setup
+ */
 function setupNavigation() {
-    document.querySelector('#compose-btn').onclick = () => compose_email();
-    document.querySelector('#inbox').onclick = () => load_mailbox('inbox');
-    document.querySelector('#sent').onclick = () => load_mailbox('sent');
-    document.querySelector('#archived').onclick = () => load_mailbox('archive');
-    document.querySelector('#trash').onclick = () => load_mailbox('trash');
-    
+    // Compose Button
+    const composeBtn = document.querySelector('#compose-btn');
+    if (composeBtn) {
+        composeBtn.onclick = () => {
+            compose_email();
+            setActiveNav(null);
+        };
+    }
+
+    // Sidebar Items
+    const navItems = {
+        'inbox': 'inbox',
+        'sent': 'sent',
+        'archived': 'archive',
+        'trash': 'trash'
+    };
+
+    Object.keys(navItems).forEach(id => {
+        const el = document.querySelector(`#${id}`);
+        if (el) {
+            el.onclick = () => {
+                load_mailbox(navItems[id]);
+                setActiveNav(id);
+            };
+        }
+    });
+
+    // Cancel Compose
     const cancelBtn = document.querySelector('#cancel-compose');
-    if (cancelBtn) cancelBtn.onclick = () => load_mailbox('inbox');
+    if (cancelBtn) {
+        cancelBtn.onclick = () => {
+            load_mailbox('inbox');
+            setActiveNav('inbox');
+        };
+    }
 }
 
 function setupComposeForm() {
-    document.querySelector('#compose-form').onsubmit = send_email;
+    const form = document.querySelector('#compose-form');
+    if (form) {
+        form.onsubmit = (event) => {
+            event.preventDefault();
+            send_email();
+        };
+    }
 }
 
+/**
+ * View Management
+ */
 function show_view(view) {
-    document.querySelector('#emails-view').style.display = (view === 'emails') ? 'block' : 'none';
-    document.querySelector('#compose-view').style.display = (view === 'compose') ? 'block' : 'none';
-    document.querySelector('#email-view').style.display = (view === 'email') ? 'block' : 'none';
+    document.querySelector('#emails-view').classList.toggle('hidden', view !== 'emails');
+    document.querySelector('#compose-view').classList.toggle('hidden', view !== 'compose');
+    document.querySelector('#email-view').classList.toggle('hidden', view !== 'email');
+    
+    if (view === 'compose') {
+        updateToolbarTitle('New Message');
+    }
 }
 
+function setActiveNav(id) {
+    document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+    if (id && document.querySelector(`#${id}`)) {
+        document.querySelector(`#${id}`).classList.add('active');
+        const title = id.charAt(0).toUpperCase() + id.slice(1);
+        updateToolbarTitle(title);
+    }
+}
+
+function updateToolbarTitle(text) {
+    const title = document.querySelector('#mailbox-title');
+    if (title) title.textContent = text;
+}
+
+/**
+ * Mailbox Loader
+ */
 function load_mailbox(mailbox) {
     show_view('emails');
     const view = document.querySelector('#emails-view');
-    document.querySelector('#mailbox-title').textContent = mailbox.charAt(0).toUpperCase() + mailbox.slice(1);
-    
-    view.innerHTML = `<div class="loading">${MESSAGES.load.loading(mailbox)}</div>`;
+    view.innerHTML = `<div class="loading"><div class="spinner"></div><p>${MESSAGES.load.loading(mailbox)}</p></div>`;
 
     fetch(`/emails/${mailbox}`)
     .then(response => response.json())
     .then(emails => {
         view.innerHTML = '';
+        
         if (emails.length === 0) {
             view.innerHTML = `<div class="empty-state">No messages in ${mailbox}.</div>`;
             return;
         }
 
-        emails.forEach(email => {
-            const element = document.createElement('div');
-            // Use the CSS classes from your styles.css
-            element.className = `email-row ${email.read ? 'read' : 'unread'}`;
-            
-            // LOGIC: Show "To: ..." if in Sent box, else show Sender
-            const displayUser = mailbox === 'sent' 
-                ? `To: ${email.recipients.join(", ")}` 
-                : email.sender;
+        const list = document.createElement('div');
+        list.className = 'emails-list';
 
-            element.innerHTML = `
-                <div class="email-sender">${displayUser}</div>
+        emails.forEach(email => {
+            const row = document.createElement('div');
+            // Match styles.css exactly
+            row.className = `email-row ${email.read ? 'read' : 'unread'}`;
+            
+            // DESIGN FIX: In 'sent' mailbox, show "To: recipients", else show "Sender"
+            const senderLabel = (mailbox === 'sent') ? `To: ${email.recipients.join(', ')}` : email.sender;
+
+            row.innerHTML = `
+                <div class="email-sender text-truncate">${escapeHtml(senderLabel)}</div>
                 <div class="email-content">
-                    <span class="email-subject">${email.subject}</span>
-                    <span class="email-preview"> - ${email.body.substring(0, 50)}...</span>
+                    <span class="email-subject">${escapeHtml(email.subject)}</span>
+                    <span class="email-preview"> - ${escapeHtml(email.body.substring(0, 60))}...</span>
                 </div>
                 <div class="email-timestamp">${email.timestamp}</div>
             `;
+
+            // THE CLICK FIX: Attach event listener to the container row
+            row.addEventListener('click', () => view_email(email.id, mailbox));
             
-            // FIX: The click listener that makes it clickable
-            element.addEventListener('click', () => view_email(email.id, mailbox));
-            view.append(element);
+            list.append(row);
         });
+        
+        view.append(list);
+    })
+    .catch(err => {
+        view.innerHTML = `<div class="error-state">${MESSAGES.load.failed(mailbox)}</div>`;
     });
 }
 
-function view_email(id, mailbox) {
+/**
+ * Email Detail View
+ */
+function view_email(email_id, mailbox) {
     show_view('email');
     const view = document.querySelector('#email-view');
-    view.innerHTML = '';
+    view.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
 
-    fetch(`/emails/${id}`)
+    fetch(`/emails/${email_id}`)
     .then(response => response.json())
     .then(email => {
-        // Mark as read
+        // Mark as Read
         if (!email.read) {
-            fetch(`/emails/${id}`, {
+            fetch(`/emails/${email_id}`, {
                 method: 'PUT',
                 body: JSON.stringify({ read: true })
             });
         }
 
+        view.innerHTML = '';
         const container = document.createElement('div');
-        container.className = 'email-detail';
-        
-        // Action Buttons Logic
-        let archiveBtnText = email.archived ? "Unarchive" : "Archive";
-        let trashBtnText = mailbox === 'trash' ? "Restore" : "Trash";
+        container.className = 'email-detail-container';
+
+        // Buttons Logic
+        const isTrash = (mailbox === 'trash' || email.deleted);
+        const archiveText = email.archived ? 'Unarchive' : 'Archive';
+        const trashText = isTrash ? 'Restore' : 'Move to Trash';
 
         container.innerHTML = `
             <div class="email-detail-header">
-                <div>
-                    <button class="btn-action" id="back-btn">← Back</button>
-                    <button class="btn-action btn-reply" id="reply-btn">Reply</button>
-                    <button class="btn-action" id="archive-btn">${archiveBtnText}</button>
-                    <button class="btn-action" style="color:red" id="trash-btn">${trashBtnText}</button>
-                    ${mailbox === 'trash' ? '<button class="btn-action" style="color:darkred" id="perm-delete">Delete Forever</button>' : ''}
-                </div>
+                <button class="btn-action" id="btn-back">← Back</button>
+                <button class="btn-action btn-reply" id="btn-reply">Reply</button>
+                <button class="btn-action" id="btn-archive">${archiveText}</button>
+                <button class="btn-action" id="btn-trash" style="color: #d93025">${trashText}</button>
+                ${isTrash ? '<button class="btn-action" id="btn-perm-delete" style="color: #701516">Delete Permanently</button>' : ''}
             </div>
             <div class="email-header">
-                <div class="email-header-row"><span class="header-label">From:</span> ${email.sender}</div>
-                <div class="email-header-row"><span class="header-label">To:</span> ${email.recipients.join(", ")}</div>
-                <div class="email-header-row"><span class="header-label">Subject:</span> ${email.subject}</div>
+                <div class="email-header-row"><span class="header-label">From:</span> ${escapeHtml(email.sender)}</div>
+                <div class="email-header-row"><span class="header-label">To:</span> ${escapeHtml(email.recipients.join(', '))}</div>
+                <div class="email-header-row"><span class="header-label">Subject:</span> ${escapeHtml(email.subject)}</div>
                 <div class="email-header-row"><span class="header-label">Date:</span> ${email.timestamp}</div>
             </div>
-            <div class="email-body">${email.body}</div>
+            <div class="email-body">${escapeHtml(email.body)}</div>
         `;
 
-        view.appendChild(container);
+        view.append(container);
 
-        // Button Listeners
-        document.querySelector('#back-btn').onclick = () => load_mailbox(mailbox);
+        // Listeners
+        document.querySelector('#btn-back').onclick = () => load_mailbox(mailbox);
         
-        document.querySelector('#reply-btn').onclick = () => {
+        document.querySelector('#btn-reply').onclick = () => {
             compose_email({
                 recipients: email.sender,
-                subject: email.subject.startsWith("Re:") ? email.subject : `Re: ${email.subject}`,
-                body: `\n\n--- On ${email.timestamp} ${email.sender} wrote: \n${email.body}`
+                subject: email.subject.startsWith('Re:') ? email.subject : `Re: ${email.subject}`,
+                body: `\n\n--- On ${email.timestamp} ${email.sender} wrote:\n${email.body}`
             });
         };
 
-        document.querySelector('#archive-btn').onclick = () => {
-            fetch(`/emails/${id}`, {
+        document.querySelector('#btn-archive').onclick = () => {
+            fetch(`/emails/${email_id}`, {
                 method: 'PUT',
                 body: JSON.stringify({ archived: !email.archived })
             }).then(() => load_mailbox('inbox'));
         };
 
-        document.querySelector('#trash-btn').onclick = () => {
-            fetch(`/emails/${id}`, {
+        document.querySelector('#btn-trash').onclick = () => {
+            fetch(`/emails/${email_id}`, {
                 method: 'PUT',
-                body: JSON.stringify({ deleted: mailbox !== 'trash' })
+                body: JSON.stringify({ deleted: !email.deleted })
             }).then(() => load_mailbox('inbox'));
         };
 
-        if (mailbox === 'trash') {
-            document.querySelector('#perm-delete').onclick = () => {
-                if (confirm("Permanently delete this email?")) {
-                    fetch(`/emails/${id}`, { method: 'DELETE' })
+        if (isTrash && document.querySelector('#btn-perm-delete')) {
+            document.querySelector('#btn-perm-delete').onclick = () => {
+                if (confirm("Delete this email forever? This cannot be undone.")) {
+                    fetch(`/emails/${email_id}`, { method: 'DELETE' })
                     .then(() => load_mailbox('trash'));
                 }
             };
@@ -162,22 +240,28 @@ function view_email(id, mailbox) {
     });
 }
 
+/**
+ * Composition Logic
+ */
 function compose_email(prefill = {}) {
     show_view('compose');
     document.querySelector('#compose-recipients').value = prefill.recipients || '';
     document.querySelector('#compose-subject').value = prefill.subject || '';
     document.querySelector('#compose-body').value = prefill.body || '';
+    
+    if (!prefill.recipients) {
+        document.querySelector('#compose-recipients').focus();
+    }
 }
 
-function send_email(e) {
-    e.preventDefault();
+function send_email() {
+    const recipients = document.querySelector('#compose-recipients').value;
+    const subject = document.querySelector('#compose-subject').value;
+    const body = document.querySelector('#compose-body').value;
+
     fetch('/emails', {
         method: 'POST',
-        body: JSON.stringify({
-            recipients: document.querySelector('#compose-recipients').value,
-            subject: document.querySelector('#compose-subject').value,
-            body: document.querySelector('#compose-body').value
-        })
+        body: JSON.stringify({ recipients, subject, body })
     })
     .then(response => response.json())
     .then(result => {
@@ -185,6 +269,16 @@ function send_email(e) {
             alert(result.error);
         } else {
             load_mailbox('sent');
+            setActiveNav('sent');
         }
     });
+}
+
+/**
+ * Helpers
+ */
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
