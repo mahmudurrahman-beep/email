@@ -79,7 +79,37 @@
       </header>
 
       <section class="content-area content-body" role="region" aria-live="polite">
-        {% block body %}{% endblock %}
+        {% block body %}
+        <!-- Default body: mailbox container and email view placeholders -->
+        <div id="emails-view" class="view"></div>
+        <div id="compose-view" class="hidden">
+          <!-- Optional compose form (JS can inject or you can include a form here) -->
+          <form id="compose-form" class="auth-card" onsubmit="return false;">
+            <div class="compose-header">
+              <div class="compose-header-title">Compose</div>
+            </div>
+            <div id="compose-form" class="compose-body">
+              <div class="form-group">
+                <label for="compose-recipients">To</label>
+                <input id="compose-recipients" name="recipients" class="form-control" placeholder="recipient@example.com">
+              </div>
+              <div class="form-group">
+                <label for="compose-subject">Subject</label>
+                <input id="compose-subject" name="subject" class="form-control" placeholder="Subject">
+              </div>
+              <div class="form-group">
+                <label for="compose-body">Body</label>
+                <textarea id="compose-body" name="body" class="form-control" placeholder="Write your message..."></textarea>
+              </div>
+              <div class="form-actions">
+                <button type="submit" class="send-btn">Send</button>
+                <button type="button" id="cancel-compose" class="cancel-btn">Cancel</button>
+              </div>
+            </div>
+          </form>
+        </div>
+        <div id="email-view" class="hidden"></div>
+        {% endblock %}
       </section>
     </main>
   </div>
