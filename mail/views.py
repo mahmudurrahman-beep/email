@@ -37,8 +37,7 @@ def compose(request):
     subject = data.get("subject", "")
     body = data.get("body", "")
 
-    # Create separate copies for each participant (sender and all recipients)
-    # This allows individual archiving/deletion without affecting others
+    # Create separate copies for each participant
     users = set()
     users.add(request.user)
     users.update(recipients)
@@ -49,7 +48,7 @@ def compose(request):
             sender=request.user,
             subject=subject,
             body=body,
-            read=(user == request.user) # Sender's copy is marked as read
+            read=(user == request.user)
         )
         email_obj.save()
         for recipient in recipients:
@@ -60,11 +59,6 @@ def compose(request):
 
 @login_required
 def mailbox(request, mailbox):
-    """
-    Retrieves the specific mailbox list. 
-    Design Note: Sent folder should exclude archived/deleted items 
-    so they move to those respective folders when modified.
-    """
     if mailbox == "inbox":
         emails = Email.objects.filter(
             user=request.user, 
@@ -80,14 +74,12 @@ def mailbox(request, mailbox):
             deleted=False
         )
     elif mailbox == "archive":
-        # Any mail that is archived but not deleted
         emails = Email.objects.filter(
             user=request.user, 
             archived=True, 
             deleted=False
         )
     elif mailbox == "trash":
-        # Everything soft-deleted
         emails = Email.objects.filter(
             user=request.user, 
             deleted=True
@@ -95,7 +87,6 @@ def mailbox(request, mailbox):
     else:
         return JsonResponse({"error": "Invalid mailbox."}, status=400)
 
-    # Order by most recent first
     emails = emails.order_by("-timestamp").all()
     return JsonResponse([email.serialize() for email in emails], safe=False)
 
@@ -103,11 +94,7 @@ def mailbox(request, mailbox):
 @csrf_exempt
 @login_required
 def email(request, email_id):
-    """
-    Handles GET (view), PUT (update flags), and DELETE (permanent removal).
-    """
     try:
-        # Crucial: only get email belonging to the current user's copy
         email_obj = Email.objects.get(user=request.user, pk=email_id)
     except Email.DoesNotExist:
         return JsonResponse({"error": "Email not found."}, status=404)
@@ -117,7 +104,6 @@ def email(request, email_id):
 
     elif request.method == "PUT":
         data = json.loads(request.body or "{}")
-        # Update boolean flags if provided in request
         if "read" in data:
             email_obj.read = bool(data["read"])
         if "archived" in data:
@@ -128,7 +114,6 @@ def email(request, email_id):
         return HttpResponse(status=204)
 
     elif request.method == "DELETE":
-        # Only allow permanent deletion if it was already in Trash (soft-deleted)
         if email_obj.deleted:
             email_obj.delete()
             return HttpResponse(status=204)
@@ -138,7 +123,6 @@ def email(request, email_id):
     else:
         return JsonResponse({"error": "GET, PUT or DELETE request required."}, status=405)
 
-# Standard Auth views remain the same
 def login_view(request):
     if request.method == "POST":
         email = request.POST.get("email", "").strip()
