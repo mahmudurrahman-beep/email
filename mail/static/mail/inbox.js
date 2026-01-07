@@ -1,6 +1,6 @@
 /**
  * static/mail/inbox.js
- * Full implementation with Click Listeners and Sent-folder design fixes.
+ * Full implementation with polished inbox list design (Gmail-inspired distinction)
  */
 const MESSAGES = {
     send: { sending: 'Sending...', sent: 'Email sent successfully.', failed: 'Failed to send email.' },
@@ -11,7 +11,6 @@ const MESSAGES = {
     mark: { read: 'Marked read', unread: 'Marked unread' }
 };
 document.addEventListener('DOMContentLoaded', () => {
-    // Basic Layout Check
     if (!document.querySelector('.sidebar')) document.body.classList.add('no-sidebar');
    
     initApp();
@@ -20,17 +19,11 @@ function initApp() {
     setupNavigation();
     setupComposeForm();
    
-    // Default view
     load_mailbox('inbox');
     setActiveNav('inbox');
 }
-/**
- * Navigation Setup
- */
 function setupNavigation() {
-    // 1. Compose Button
     document.querySelector('#compose-btn').onclick = () => compose_email();
-    // 2. Map existing sidebar items
     const mailboxes = ['inbox', 'sent', 'archived'];
     mailboxes.forEach(mb => {
         const el = document.querySelector(`#${mb}`);
@@ -40,7 +33,6 @@ function setupNavigation() {
             setActiveNav(mb);
         };
     });
-    // 3. FIX: Ensure Trash exists and is visible in the sidebar
     let trashBtn = document.querySelector('#trash');
     if (!trashBtn) {
         const nav = document.querySelector('.nav-menu');
@@ -74,9 +66,6 @@ function setupComposeForm() {
         };
     }
 }
-/**
- * View Management
- */
 function show_view(view) {
     document.querySelector('#emails-view').classList.toggle('hidden', view !== 'emails');
     document.querySelector('#compose-view').classList.toggle('hidden', view !== 'compose');
@@ -101,9 +90,6 @@ function updateToolbarTitle(text) {
     const title = document.querySelector('#mailbox-title');
     if (title) title.textContent = text;
 }
-/**
- * Helpers
- */
 function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
@@ -111,19 +97,18 @@ function escapeHtml(text) {
 }
 function formatTimestamp(ts) {
     const date = new Date(ts);
-    const options = {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true
-    };
-    return date.toLocaleString('en-US', options);
+    const now = new Date();
+    const isToday = date.toDateString() === now.toDateString();
+    const isThisYear = date.getFullYear() === now.getFullYear();
+
+    if (isToday) {
+        return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    } else if (isThisYear) {
+        return date.toLocaleString('en-US', { month: 'short', day: 'numeric' });
+    } else {
+        return date.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
 }
-/**
- * Mailbox Loader
- */
 function load_mailbox(mailbox) {
     show_view('emails');
     const view = document.querySelector('#emails-view');
@@ -147,14 +132,17 @@ function load_mailbox(mailbox) {
             const senderDisplay = email.sender === userEmail ? 'You' : email.sender;
             const recipientsDisplay = email.recipients.map(r => r === userEmail ? 'You' : r).join(', ');
             const senderLabel = (mailbox === 'sent') ? `To: ${recipientsDisplay}` : senderDisplay;
-            // Clean preview: take text before quote
-            let previewText = email.body.split('\n\nOn ')[0].replace(/\n/g, ' ').trim().substring(0, 60);
-            let preview = previewText ? ` - ${escapeHtml(previewText)}...` : '';
+
+            // Clean preview (remove quoted reply text)
+            let previewText = email.body.split('\n\nOn ')[0].replace(/\n/g, ' ').trim();
+            if (previewText.length > 80) previewText = previewText.substring(0, 80) + '...';
+            const preview = previewText ? previewText : '';
+
             row.innerHTML = `
                 <div class="email-sender text-truncate">${escapeHtml(senderLabel)}</div>
                 <div class="email-content">
-                    <span class="email-subject">${escapeHtml(email.subject)}</span>
-                    <span class="email-preview">${preview}</span>
+                    <span class="email-subject">${escapeHtml(email.subject || '(no subject)')}</span>
+                    ${preview ? `<span class="email-preview-separator">—</span><span class="email-preview">${escapeHtml(preview)}</span>` : ''}
                 </div>
                 <div class="email-timestamp">${formatTimestamp(email.timestamp)}</div>
             `;
@@ -169,9 +157,6 @@ function load_mailbox(mailbox) {
         view.innerHTML = `<div class="error-state">${MESSAGES.load.failed(mailbox)}</div>`;
     });
 }
-/**
- * Email Detail View
- */
 function view_email(id, mailbox) {
     show_view('email');
     const view = document.querySelector('#email-view');
@@ -180,13 +165,11 @@ function view_email(id, mailbox) {
     .then(response => response.json())
     .then(email => {
         view.innerHTML = '';
-        updateToolbarTitle(escapeHtml(email.subject) || 'Email');
-        // Toolbar
+        updateToolbarTitle(escapeHtml(email.subject || 'Email'));
         const toolbar = document.createElement('div');
         toolbar.className = 'email-detail-toolbar';
         const actions = document.createElement('div');
         actions.className = 'actions-group';
-        // Mark read/unread only for inbox and archive
         if (mailbox !== 'sent' && mailbox !== 'trash') {
             const markBtn = document.createElement('button');
             markBtn.className = 'btn-action';
@@ -194,13 +177,11 @@ function view_email(id, mailbox) {
             markBtn.onclick = () => toggle_read(email.id, email.read, mailbox);
             actions.appendChild(markBtn);
         }
-        // Reply button
         const replyBtn = document.createElement('button');
         replyBtn.className = 'btn-action btn-reply';
         replyBtn.innerText = 'Reply';
         replyBtn.onclick = () => reply_email(email);
         actions.appendChild(replyBtn);
-        // Archive/Unarchive (for inbox, sent, archive)
         if (mailbox !== 'trash') {
             const archiveBtn = document.createElement('button');
             archiveBtn.className = 'btn-action';
@@ -208,7 +189,6 @@ function view_email(id, mailbox) {
             archiveBtn.onclick = () => toggle_archive(email.id, email.archived, mailbox);
             actions.appendChild(archiveBtn);
         }
-        // Trash/Restore/Delete Forever
         if (mailbox !== 'trash') {
             const trashBtn = document.createElement('button');
             trashBtn.className = 'btn-action btn-danger';
@@ -229,7 +209,6 @@ function view_email(id, mailbox) {
         }
         toolbar.appendChild(actions);
         view.appendChild(toolbar);
-        // Header card
         const userEmail = window.CURRENT_USER_EMAIL;
         const senderDisplay = email.sender === userEmail ? 'You' : email.sender;
         const recipientsDisplay = email.recipients.map(r => r === userEmail ? 'You' : r).join(', ');
@@ -246,7 +225,7 @@ function view_email(id, mailbox) {
             </div>
             <div class="email-header-row">
                 <span class="header-label">Subject:</span>
-                <span>${escapeHtml(email.subject)}</span>
+                <span>${escapeHtml(email.subject || '(no subject)')}</span>
             </div>
             <div class="email-header-row">
                 <span class="header-label">Timestamp:</span>
@@ -254,12 +233,10 @@ function view_email(id, mailbox) {
             </div>
         `;
         view.appendChild(header);
-        // Body
         const body = document.createElement('div');
         body.className = 'email-body-content';
         body.innerHTML = escapeHtml(email.body).replace(/\n/g, '<br>');
         view.appendChild(body);
-        // Mark as read if not already and applicable
         if (!email.read && mailbox !== 'sent' && mailbox !== 'trash') {
             fetch(`/emails/${id}`, {
                 method: 'PUT',
@@ -271,9 +248,6 @@ function view_email(id, mailbox) {
         view.innerHTML = `<div class="error-state">Failed to load email.</div>`;
     });
 }
-/**
- * Email Actions
- */
 function toggle_read(id, read, mailbox) {
     fetch(`/emails/${id}`, {
         method: 'PUT',
@@ -347,9 +321,6 @@ function perm_delete(id) {
         .catch(() => showNotification(MESSAGES.archive.failed, 'error'));
     }
 }
-/**
- * Notification Helper
- */
 function showNotification(message, type = 'info') {
     const notif = document.createElement('div');
     notif.className = `notification ${type}`;
@@ -357,9 +328,6 @@ function showNotification(message, type = 'info') {
     document.body.appendChild(notif);
     setTimeout(() => notif.remove(), 3000);
 }
-/**
- * Composition Logic
- */
 function compose_email(prefill = {}) {
     show_view('compose');
     document.querySelector('#compose-recipients').value = prefill.recipients || '';
