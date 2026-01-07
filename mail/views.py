@@ -37,7 +37,7 @@ def compose(request):
     subject = data.get("subject", "")
     body = data.get("body", "")
 
-    # Create separate copies for each participant
+    # Create separate copies for each participant (sender and all recipients)
     users = set()
     users.add(request.user)
     users.update(recipients)
