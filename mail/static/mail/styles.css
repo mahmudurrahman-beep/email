@@ -283,3 +283,8 @@ body.trash-view #restore-btn {
   color: var(--text-medium);
   font-weight: 600;
 }
+/* hide archive and mark buttons when viewing Trash */
+body.trash-view #archive-btn,
+body.trash-view #mark-btn {
+  display: none !important;
+}
