@@ -64,14 +64,12 @@ TEMPLATES = [
 WSGI_APPLICATION = "project3.wsgi.application"
 
 # Database
-DATABASE_URL = os.environ.get(
-    "DATABASE_URL",
-    f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
-)
 DATABASES = {
-    "default": dj_database_url.parse(DATABASE_URL, conn_max_age=600, ssl_require=not DEBUG)
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+    }
 }
-
 # Custom user model
 AUTH_USER_MODEL = "mail.User"
 
