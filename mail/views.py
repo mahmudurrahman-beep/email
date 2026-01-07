@@ -3,6 +3,7 @@ import json
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.db import IntegrityError
+from django.db.models import Q
 from django.http import JsonResponse, HttpResponse
 from django.shortcuts import HttpResponseRedirect, render
 from django.urls import reverse
@@ -66,7 +67,8 @@ def mailbox(request, mailbox):
     elif mailbox == "sent":
         emails = Email.objects.filter(user=request.user, sender=request.user, deleted=False)
     elif mailbox == "archive":
-        emails = Email.objects.filter(user=request.user, recipients=request.user, archived=True, deleted=False)
+        # Include archived copies where the current user is either a recipient OR the sender (so sent items archived by sender show up)
+        emails = Email.objects.filter(user=request.user, archived=True, deleted=False).filter(Q(recipients=request.user) | Q(sender=request.user))
     elif mailbox == "trash":
         emails = Email.objects.filter(user=request.user, deleted=True)
     else:
