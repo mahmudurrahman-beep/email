@@ -1,11 +1,27 @@
 # mail/models.py
 from django.db import models
+from django.contrib.auth.models import AbstractUser
 from django.conf import settings
 
+class User(AbstractUser):
+    """
+    Minimal custom user model.
+    Uses email as the unique identifier for login (USERNAME_FIELD).
+    Keeps first_name/last_name fields from AbstractUser.
+    """
+    username = None  # we will use email as the unique identifier
+    email = models.EmailField('email address', unique=True)
+
+    USERNAME_FIELD = 'email'
+    REQUIRED_FIELDS = []  # no additional required fields
+
+    def __str__(self):
+        return self.email
+
+# Email model (per-user copy model)
 class Email(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)  # owner of this copy
-    # store sender as string (email or display name) for readability
-    sender = models.CharField(max_length=255)
+    sender = models.CharField(max_length=255)  # store sender as readable string (email or name)
     recipients = models.ManyToManyField(settings.AUTH_USER_MODEL, related_name='received_emails', blank=True)
     subject = models.CharField(max_length=255, blank=True)
     body = models.TextField(blank=True)
@@ -26,10 +42,6 @@ class Email(models.Model):
         return [u.email for u in self.recipients.all()]
 
     def serialize(self, current_user_email=None):
-        """
-        JSON-serializable representation for the frontend.
-        Pass current_user_email from the view to compute is_owner.
-        """
         sender_val = self.sender_email() or (self.sender or "")
         recipients = self.recipient_emails()
         return {
