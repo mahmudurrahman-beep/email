@@ -1,4 +1,19 @@
+// static/mail/inbox.js
 // inbox.js - inbox client with archive guard for Sent and Trash feature-detection
+// All user-facing strings centralized in MESSAGES for easy edits/localization.
+
+const MESSAGES = {
+  send: { sending: 'Sending...', sent: 'Email sent.', failed: 'Failed to send email.' },
+  validation: { noRecipient: 'Please enter at least one recipient.' },
+  load: { loading: (mb) => `Loading ${mb}...`, failed: (mb) => `Failed to load ${mb}.` },
+  archive: { archived: 'Archived', unarchivedInbox: 'Moved to Inbox', unarchivedSent: 'Moved to Sent', failed: 'Update failed' },
+  trash: { notSupported: 'Delete not supported by server', moved: 'Moved to Trash', restored: 'Restored', failedMove: 'Failed to move to Trash', permDeleted: 'Permanently deleted', permFailed: 'Permanent delete failed' },
+  restore: { toArchive: 'Restored to Archive', toSent: 'Restored to Sent', toInbox: 'Restored to Inbox', failed: 'Restore failed' },
+  mark: { read: 'Marked read', unread: 'Marked unread', failed: 'Failed to update read state' },
+  confirm: { permDelete: 'Permanently delete this message? This cannot be undone.' },
+  compose: { newEmail: 'New Email' }
+};
+
 document.addEventListener('DOMContentLoaded', () => {
   if (!document.querySelector('.sidebar')) document.body.classList.add('no-sidebar');
   initApp();
@@ -97,7 +112,7 @@ function show_view(view) {
   if (view === 'emails' && emailsView) emailsView.classList.remove('hidden');
   else if (view === 'compose' && composeView) {
     composeView.classList.remove('hidden');
-    updateToolbarTitle('New Email');
+    updateToolbarTitle(MESSAGES.compose.newEmail);
     document.body.classList.add('compose-active');
   } else if (view === 'email' && emailView) {
     emailView.classList.remove('hidden');
@@ -143,9 +158,9 @@ function send_email(event) {
   const subject = (document.querySelector('#compose-subject') || {}).value || '';
   const body = (document.querySelector('#compose-body') || {}).value || '';
 
-  if (!recipients.trim()) { show_notification('Please enter at least one recipient.', 'error'); return; }
+  if (!recipients.trim()) { show_notification(MESSAGES.validation.noRecipient, 'error'); return; }
 
-  show_notification('Sending...', 'info');
+  show_notification(MESSAGES.send.sending, 'info');
 
   fetch('/emails', {
     method: 'POST',
@@ -154,9 +169,9 @@ function send_email(event) {
     .then(res => res.json())
     .then(data => {
       if (data.error) show_notification(data.error, 'error');
-      else { show_notification('Email sent.', 'success'); load_mailbox('sent'); setActiveNav('sent'); }
+      else { show_notification(MESSAGES.send.sent, 'success'); load_mailbox('sent'); setActiveNav('sent'); }
     })
-    .catch(() => show_notification('Failed to send email.', 'error'));
+    .catch(() => show_notification(MESSAGES.send.failed, 'error'));
 }
 
 /* Load mailbox */
@@ -167,7 +182,7 @@ function load_mailbox(mailbox) {
   view.innerHTML = '';
   const loading = document.createElement('div');
   loading.className = 'loading-state';
-  loading.innerHTML = `<div class="spinner"></div><p>Loading ${escapeHtml(capitalize(mailbox))}...</p>`;
+  loading.innerHTML = `<div class="spinner"></div><p>${escapeHtml(MESSAGES.load.loading(capitalize(mailbox)))}</p>`;
   view.appendChild(loading);
 
   fetch(`/emails/${mailbox}`)
@@ -183,7 +198,7 @@ function load_mailbox(mailbox) {
       view.appendChild(list);
     })
     .catch(() => {
-      view.innerHTML = `<div class="error-state"><p>Failed to load ${escapeHtml(capitalize(mailbox))}.</p></div>`;
+      view.innerHTML = `<div class="error-state"><p>${escapeHtml(MESSAGES.load.failed(capitalize(mailbox)))}</p></div>`;
     });
 }
 
@@ -317,23 +332,23 @@ function renderEmailView(email, container, currentMailbox) {
         .then(() => {
           // Choose message and destination based on whether the current user owns this Email row
           if (newArchived) {
-            show_notification('Archived', 'success');
+            show_notification(MESSAGES.archive.archived, 'success');
             load_mailbox('archive');
             setActiveNav('archived');
           } else {
             // Unarchived: go back to Inbox if recipient, Sent if owner is sender
             if (isOwner && email.sender === currentUserEmail) {
-              show_notification('Moved to Sent', 'success');
+              show_notification(MESSAGES.archive.unarchivedSent, 'success');
               load_mailbox('sent');
               setActiveNav('sent');
             } else {
-              show_notification('Moved to Inbox', 'success');
+              show_notification(MESSAGES.archive.unarchivedInbox, 'success');
               load_mailbox('inbox');
               setActiveNav('inbox');
             }
           }
         })
-        .catch(() => show_notification('Update failed', 'error'));
+        .catch(() => show_notification(MESSAGES.archive.failed, 'error'));
     });
   }
 
@@ -360,48 +375,48 @@ function renderEmailView(email, container, currentMailbox) {
           // If the email was archived before deletion, restore back to Archive.
           // Otherwise, if the current user owns the row and is the sender, restore to Sent; otherwise restore to Inbox.
           if (email.archived) {
-            show_notification('Restored to Archive', 'success');
+            show_notification(MESSAGES.restore.toArchive, 'success');
             load_mailbox('archive');
             setActiveNav('archived');
           } else if (isOwner && email.sender === currentUserEmail) {
-            show_notification('Restored to Sent', 'success');
+            show_notification(MESSAGES.restore.toSent, 'success');
             load_mailbox('sent');
             setActiveNav('sent');
           } else {
-            show_notification('Restored to Inbox', 'success');
+            show_notification(MESSAGES.restore.toInbox, 'success');
             load_mailbox('inbox');
             setActiveNav('inbox');
           }
         })
-        .catch(() => show_notification('Restore failed', 'error'));
+        .catch(() => show_notification(MESSAGES.restore.failed, 'error'));
     });
 
     // Wire permanent delete (confirm)
     if (deleteBtn) {
       deleteBtn.addEventListener('click', () => {
-        if (!confirm('Permanently delete this message? This cannot be undone.')) return;
+        if (!confirm(MESSAGES.confirm.permDelete)) return;
         fetch(`/emails/${email.id}`, { method: 'DELETE' })
-          .then(res => { if (res.ok) { show_notification('Permanently deleted', 'success'); load_mailbox('trash'); setActiveNav('trash'); } else { show_notification('Permanent delete failed', 'error'); } })
-          .catch(() => show_notification('Permanent delete failed', 'error'));
+          .then(res => { if (res.ok) { show_notification(MESSAGES.trash.permDeleted, 'success'); load_mailbox('trash'); setActiveNav('trash'); } else { show_notification(MESSAGES.trash.permFailed, 'error'); } })
+          .catch(() => show_notification(MESSAGES.trash.permFailed, 'error'));
       });
     }
   } else {
     // Normal inbox/archive/sent behavior: move to trash or permanent delete if already deleted
     if (deleteBtn) {
       deleteBtn.addEventListener('click', () => {
-        if (!SUPPORTS_TRASH) { show_notification('Delete not supported by server', 'error'); return; }
+        if (!SUPPORTS_TRASH) { show_notification(MESSAGES.trash.notSupported, 'error'); return; }
         if (!email.deleted) {
           updateEmail(email.id, { deleted: true })
             .then(() => {
-              showUndoToast('Moved to Trash', () => updateEmail(email.id, { deleted: false }).then(() => { show_notification('Restored', 'success'); load_mailbox('inbox'); setActiveNav('inbox'); }));
+              showUndoToast(MESSAGES.trash.moved, () => updateEmail(email.id, { deleted: false }).then(() => { show_notification(MESSAGES.trash.restored, 'success'); load_mailbox('inbox'); setActiveNav('inbox'); }));
               load_mailbox('inbox'); setActiveNav('inbox');
             })
-            .catch(() => show_notification('Failed to move to Trash', 'error'));
+            .catch(() => show_notification(MESSAGES.trash.failedMove, 'error'));
         } else {
-          if (!confirm('Permanently delete this message? This cannot be undone.')) return;
+          if (!confirm(MESSAGES.confirm.permDelete)) return;
           fetch(`/emails/${email.id}`, { method: 'DELETE' })
-            .then(res => { if (res.ok) { show_notification('Permanently deleted', 'success'); load_mailbox('trash'); setActiveNav('trash'); } else { show_notification('Permanent delete failed', 'error'); } })
-            .catch(() => show_notification('Permanent delete failed', 'error'));
+            .then(res => { if (res.ok) { show_notification(MESSAGES.trash.permDeleted, 'success'); load_mailbox('trash'); setActiveNav('trash'); } else { show_notification(MESSAGES.trash.permFailed, 'error'); } })
+            .catch(() => show_notification(MESSAGES.trash.permFailed, 'error'));
         }
       });
     }
@@ -410,8 +425,8 @@ function renderEmailView(email, container, currentMailbox) {
   const markBtn = document.getElementById('mark-btn');
   if (markBtn) markBtn.addEventListener('click', () => {
     updateEmail(email.id, { read: !email.read })
-      .then(() => { show_notification(email.read ? 'Marked unread' : 'Marked read', 'success'); load_mailbox(currentMailbox || 'inbox'); setActiveNav(currentMailbox || 'inbox'); })
-      .catch(() => show_notification('Failed to update read state', 'error'));
+      .then(() => { show_notification(email.read ? MESSAGES.mark.unread : MESSAGES.mark.read, 'success'); load_mailbox(currentMailbox || 'inbox'); setActiveNav(currentMailbox || 'inbox'); })
+      .catch(() => show_notification(MESSAGES.mark.failed, 'error'));
   });
 }
 
@@ -445,11 +460,11 @@ function updateEmail(id, payload) {
 function toggleArchive(id, currentlyArchived) {
   updateEmail(id, { archived: !currentlyArchived })
     .then(() => {
-      show_notification(currentlyArchived ? 'Moved to Inbox' : 'Archived', 'success');
+      show_notification(currentlyArchived ? MESSAGES.archive.unarchivedInbox : MESSAGES.archive.archived, 'success');
       load_mailbox('inbox');
       setActiveNav('inbox');
     })
-    .catch(() => show_notification('Update failed', 'error'));
+    .catch(() => show_notification(MESSAGES.archive.failed, 'error'));
 }
 
 /* Notifications */
@@ -499,7 +514,7 @@ function replyToEmailFromView(id) {
       ].join('\n');
       compose_email({ recipients: email.sender, subject: subj, body: quoted });
     })
-    .catch(() => show_notification('Failed to load email for reply', 'error'));
+    .catch(() => show_notification(MESSAGES.send.failed, 'error'));
 }
 
 /* Utilities */
