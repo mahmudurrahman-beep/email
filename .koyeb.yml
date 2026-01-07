@@ -1,0 +1,12 @@
+services:
+  - name: web
+    type: web
+    build:
+      builder: paketobuildpacks/builder:base
+    run:
+      command: gunicorn project3.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120 --config gunicorn.conf.py
+    env:
+      - name: DJANGO_SETTINGS_MODULE
+        value: project3.settings
+      - name: PYTHONPATH
+        value: /workspace
