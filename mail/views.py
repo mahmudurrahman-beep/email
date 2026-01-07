@@ -1,20 +1,21 @@
-# mail/views.py
 import json
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.db import IntegrityError
-from django.http import JsonResponse, HttpResponse, HttpResponseBadRequest
-from django.shortcuts import HttpResponseRedirect, render, get_object_or_404
+from django.http import JsonResponse, HttpResponse
+from django.shortcuts import HttpResponseRedirect, render
 from django.urls import reverse
 from django.views.decorators.csrf import csrf_exempt
 
 from .models import User, Email
+
 
 def index(request):
     if request.user.is_authenticated:
         return render(request, "mail/inbox.html")
     else:
         return HttpResponseRedirect(reverse("login"))
+
 
 @csrf_exempt
 @login_required
@@ -38,15 +39,13 @@ def compose(request):
     subject = data.get("subject", "")
     body = data.get("body", "")
 
-    # Create per-user copies: owner is each user in the set (sender + recipients)
     users = set()
     users.add(request.user)
     users.update(recipients)
     for user in users:
-        # store sender as readable string (email)
         email_obj = Email(
             user=user,
-            sender=request.user.email,
+            sender=request.user,
             subject=subject,
             body=body,
             read=(user == request.user)
@@ -58,23 +57,23 @@ def compose(request):
 
     return JsonResponse({"message": "Email sent successfully."}, status=201)
 
+
 @login_required
 def mailbox(request, mailbox):
-    mailbox = mailbox.lower()
     if mailbox == "inbox":
         emails = Email.objects.filter(user=request.user, recipients=request.user, archived=False, deleted=False)
     elif mailbox == "sent":
-        # Sent: owner copies where sender equals current user's email
-        emails = Email.objects.filter(user=request.user, sender__icontains=request.user.email, deleted=False)
-    elif mailbox == "archive" or mailbox == "archived":
-        emails = Email.objects.filter(user=request.user, archived=True, deleted=False)
+        emails = Email.objects.filter(user=request.user, sender=request.user, deleted=False)
+    elif mailbox == "archive":
+        emails = Email.objects.filter(user=request.user, recipients=request.user, archived=True, deleted=False)
     elif mailbox == "trash":
         emails = Email.objects.filter(user=request.user, deleted=True)
     else:
         return JsonResponse({"error": "Invalid mailbox."}, status=400)
 
     emails = emails.order_by("-timestamp").all()
-    return JsonResponse([email.serialize(current_user_email=request.user.email) for email in emails], safe=False)
+    return JsonResponse([email.serialize() for email in emails], safe=False)
+
 
 @csrf_exempt
 @login_required
@@ -85,7 +84,7 @@ def email(request, email_id):
         return JsonResponse({"error": "Email not found."}, status=404)
 
     if request.method == "GET":
-        return JsonResponse(email_obj.serialize(current_user_email=request.user.email))
+        return JsonResponse(email_obj.serialize())
 
     elif request.method == "PUT":
         data = json.loads(request.body or "{}")
@@ -108,6 +107,7 @@ def email(request, email_id):
     else:
         return JsonResponse({"error": "GET, PUT or DELETE request required."}, status=400)
 
+
 def login_view(request):
     if request.method == "POST":
         email = request.POST.get("email", "")
@@ -121,9 +121,11 @@ def login_view(request):
     else:
         return render(request, "mail/login.html")
 
+
 def logout_view(request):
     logout(request)
     return HttpResponseRedirect(reverse("index"))
+
 
 def register(request):
     if request.method == "POST":

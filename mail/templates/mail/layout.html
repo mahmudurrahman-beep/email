@@ -5,21 +5,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>{% block title %}Mail{% endblock %}</title>
-
-  <!-- Core styles -->
   <link rel="stylesheet" href="{% static 'mail/styles.css' %}">
-
-  <!-- Page-specific scripts -->
   {% block script %}{% endblock %}
-
-  <!-- Expose current user email for client-side ownership checks -->
-  {% if request.user.is_authenticated %}
-  <script>
-    window.CURRENT_USER_EMAIL = "{{ request.user.email|default:''|escapejs }}";
-  </script>
-  {% else %}
-  <script>window.CURRENT_USER_EMAIL = null;</script>
-  {% endif %}
 </head>
 
 <body class="{% if not request.user.is_authenticated %}no-sidebar{% endif %}">
@@ -27,13 +14,14 @@
     {% if request.user.is_authenticated %}
     <aside class="sidebar" role="navigation" aria-label="Main navigation">
       <div class="logo-section">
-        <a class="logo-container" href="{% url 'index' %}">
-          <div class="logo-text logo-colored" aria-hidden="true">
-            <span style="color:#ea4335">M</span>
-            <span style="color:#fbbc05">A</span>
-            <span style="color:#34a853">I</span>
-            <span style="color:#4285f4">L</span>
-          </div>
+        <a class="logo-container" href="#">
+    <div class="logo-text logo-colored">
+  <span style="color:#ea4335">M</span>
+  <span style="color:#fbbc05">A</span>
+  <span style="color:#34a853">I</span>
+  <span style="color:#4285f4">L</span>
+</div>
+
         </a>
       </div>
 
@@ -44,23 +32,23 @@
       </div>
 
       <nav class="nav-menu" aria-label="Mail folders">
-        <div id="inbox" class="nav-item" role="button" tabindex="0" aria-pressed="false">
+        <div id="inbox" class="nav-item" role="button" tabindex="0">
           <svg class="nav-svg" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M19 3H4.99C3.89 3 3 3.9 3 5v11c0 1.1.89 2 1.99 2H19c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 13H4.99V5H19v11zM6 17h12v2H6z"/></svg>
           <span class="nav-label">Inbox</span>
         </div>
 
-        <div id="sent" class="nav-item" role="button" tabindex="0" aria-pressed="false">
+        <div id="sent" class="nav-item" role="button" tabindex="0">
           <svg class="nav-svg" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
           <span class="nav-label">Sent</span>
         </div>
 
-        <div id="archived" class="nav-item" role="button" tabindex="0" aria-pressed="false">
+        <div id="archived" class="nav-item" role="button" tabindex="0">
           <svg class="nav-svg" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M20.54 5.23L19.2 3H4.8L3.46 5.23 2 8v11a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8l-1.46-2.77zM12 17a3 3 0 1 1 0-6 3 3 0 0 1 0 6zM4 8h16l-1.2-2H5.2L4 8z"/></svg>
           <span class="nav-label">Archived</span>
         </div>
       </nav>
 
-      <div class="user-section" aria-hidden="false">
+      <div class="user-section">
         <div class="user-profile">
           <div class="user-avatar" aria-hidden="true">{{ request.user.email|first|upper }}</div>
           <div class="user-info">
@@ -74,52 +62,18 @@
     {% endif %}
 
     <main class="main-content" role="main">
-      <header class="content-toolbar" role="banner">
+      <header class="content-toolbar">
         <h2 id="mailbox-title">Inbox</h2>
       </header>
 
-      <section class="content-area content-body" role="region" aria-live="polite">
-        {% block body %}
-        <!-- Default body: mailbox container and email view placeholders -->
-        <div id="emails-view" class="view"></div>
-        <div id="compose-view" class="hidden">
-          <!-- Optional compose form (JS can inject or you can include a form here) -->
-          <form id="compose-form" class="auth-card" onsubmit="return false;">
-            <div class="compose-header">
-              <div class="compose-header-title">Compose</div>
-            </div>
-            <div id="compose-form" class="compose-body">
-              <div class="form-group">
-                <label for="compose-recipients">To</label>
-                <input id="compose-recipients" name="recipients" class="form-control" placeholder="recipient@example.com">
-              </div>
-              <div class="form-group">
-                <label for="compose-subject">Subject</label>
-                <input id="compose-subject" name="subject" class="form-control" placeholder="Subject">
-              </div>
-              <div class="form-group">
-                <label for="compose-body">Body</label>
-                <textarea id="compose-body" name="body" class="form-control" placeholder="Write your message..."></textarea>
-              </div>
-              <div class="form-actions">
-                <button type="submit" class="send-btn">Send</button>
-                <button type="button" id="cancel-compose" class="cancel-btn">Cancel</button>
-              </div>
-            </div>
-          </form>
-        </div>
-        <div id="email-view" class="hidden"></div>
-        {% endblock %}
+      <section class="content-area content-body">
+        {% block body %}{% endblock %}
       </section>
     </main>
   </div>
 
-  <!-- Core client script (replace path if you bundle differently) -->
-  <script src="{% static 'mail/inbox.js' %}"></script>
-
   {% block extra_scripts %}
   <script>
-    // Small DOM-ready helper used by pages that don't render the sidebar
     document.addEventListener('DOMContentLoaded', () => {
       if (!document.querySelector('.sidebar')) document.body.classList.add('no-sidebar');
     });
