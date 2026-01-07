@@ -32,42 +32,32 @@ function initApp() {
  * Navigation Setup
  */
 function setupNavigation() {
-    // Compose Button
-    const composeBtn = document.querySelector('#compose-btn');
-    if (composeBtn) {
-        composeBtn.onclick = () => {
-            compose_email();
-            setActiveNav(null);
-        };
-    }
+    // 1. Compose Button
+    document.querySelector('#compose-btn').onclick = () => compose_email();
 
-    // Sidebar Items
-    const navItems = {
-        'inbox': 'inbox',
-        'sent': 'sent',
-        'archived': 'archive',
-        'trash': 'trash'
-    };
-
-    Object.keys(navItems).forEach(id => {
-        const el = document.querySelector(`#${id}`);
-        if (el) {
-            el.onclick = () => {
-                load_mailbox(navItems[id]);
-                setActiveNav(id);
-            };
-        }
+    // 2. Map existing sidebar items
+    const mailboxes = ['inbox', 'sent', 'archived'];
+    mailboxes.forEach(mb => {
+        const el = document.querySelector(`#${mb}`);
+        if (el) el.onclick = () => load_mailbox(mb === 'archived' ? 'archive' : mb);
     });
 
-    // Cancel Compose
-    const cancelBtn = document.querySelector('#cancel-compose');
-    if (cancelBtn) {
-        cancelBtn.onclick = () => {
-            load_mailbox('inbox');
-            setActiveNav('inbox');
-        };
+    // 3. FIX: Ensure Trash exists and is visible in the sidebar
+    let trashBtn = document.querySelector('#trash');
+    if (!trashBtn) {
+        const nav = document.querySelector('.nav-menu');
+        trashBtn = document.createElement('div');
+        trashBtn.id = 'trash';
+        trashBtn.className = 'nav-item';
+        trashBtn.innerHTML = `
+            <svg class="nav-svg" viewBox="0 0 24 24"><path fill="currentColor" d="M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+            <span class="nav-label">Trash</span>
+        `;
+        nav.appendChild(trashBtn);
     }
+    trashBtn.onclick = () => load_mailbox('trash');
 }
+
 
 function setupComposeForm() {
     const form = document.querySelector('#compose-form');
