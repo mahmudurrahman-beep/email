@@ -2,7 +2,6 @@
  * static/mail/inbox.js
  * Full implementation with Click Listeners and Sent-folder design fixes.
  */
-
 const MESSAGES = {
     send: { sending: 'Sending...', sent: 'Email sent successfully.', failed: 'Failed to send email.' },
     validation: { noRecipient: 'Please enter at least one recipient.' },
@@ -11,37 +10,36 @@ const MESSAGES = {
     trash: { moved: 'Moved to Trash', restored: 'Restored', permDeleted: 'Permanently deleted' },
     mark: { read: 'Marked read', unread: 'Marked unread' }
 };
-
 document.addEventListener('DOMContentLoaded', () => {
     // Basic Layout Check
     if (!document.querySelector('.sidebar')) document.body.classList.add('no-sidebar');
-    
+   
     initApp();
 });
-
 function initApp() {
     setupNavigation();
     setupComposeForm();
-    
+   
     // Default view
     load_mailbox('inbox');
     setActiveNav('inbox');
 }
-
 /**
  * Navigation Setup
  */
 function setupNavigation() {
     // 1. Compose Button
     document.querySelector('#compose-btn').onclick = () => compose_email();
-
     // 2. Map existing sidebar items
     const mailboxes = ['inbox', 'sent', 'archived'];
     mailboxes.forEach(mb => {
         const el = document.querySelector(`#${mb}`);
-        if (el) el.onclick = () => load_mailbox(mb === 'archived' ? 'archive' : mb);
+        if (el) el.onclick = () => {
+            const mbName = mb === 'archived' ? 'archive' : mb;
+            load_mailbox(mbName);
+            setActiveNav(mb);
+        };
     });
-
     // 3. FIX: Ensure Trash exists and is visible in the sidebar
     let trashBtn = document.querySelector('#trash');
     if (!trashBtn) {
@@ -55,10 +53,11 @@ function setupNavigation() {
         `;
         nav.appendChild(trashBtn);
     }
-    trashBtn.onclick = () => load_mailbox('trash');
+    trashBtn.onclick = () => {
+        load_mailbox('trash');
+        setActiveNav('trash');
+    };
 }
-
-
 function setupComposeForm() {
     const form = document.querySelector('#compose-form');
     if (form) {
@@ -67,8 +66,14 @@ function setupComposeForm() {
             send_email();
         };
     }
+    const cancelBtn = document.querySelector('#cancel-compose');
+    if (cancelBtn) {
+        cancelBtn.onclick = () => {
+            load_mailbox('inbox');
+            setActiveNav('inbox');
+        };
+    }
 }
-
 /**
  * View Management
  */
@@ -76,12 +81,14 @@ function show_view(view) {
     document.querySelector('#emails-view').classList.toggle('hidden', view !== 'emails');
     document.querySelector('#compose-view').classList.toggle('hidden', view !== 'compose');
     document.querySelector('#email-view').classList.toggle('hidden', view !== 'email');
-    
+   
+    if (view !== 'emails') {
+        setActiveNav('');
+    }
     if (view === 'compose') {
         updateToolbarTitle('New Message');
     }
 }
-
 function setActiveNav(id) {
     document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
     if (id && document.querySelector(`#${id}`)) {
@@ -90,12 +97,10 @@ function setActiveNav(id) {
         updateToolbarTitle(title);
     }
 }
-
 function updateToolbarTitle(text) {
     const title = document.querySelector('#mailbox-title');
     if (title) title.textContent = text;
 }
-
 /**
  * Mailbox Loader
  */
@@ -103,28 +108,25 @@ function load_mailbox(mailbox) {
     show_view('emails');
     const view = document.querySelector('#emails-view');
     view.innerHTML = `<div class="loading"><div class="spinner"></div><p>${MESSAGES.load.loading(mailbox)}</p></div>`;
-
     fetch(`/emails/${mailbox}`)
     .then(response => response.json())
     .then(emails => {
         view.innerHTML = '';
-        
+       
         if (emails.length === 0) {
             view.innerHTML = `<div class="empty-state">No messages in ${mailbox}.</div>`;
             return;
         }
-
         const list = document.createElement('div');
         list.className = 'emails-list';
-
         emails.forEach(email => {
             const row = document.createElement('div');
-            // Match styles.css exactly
             row.className = `email-row ${email.read ? 'read' : 'unread'}`;
-            
-            // DESIGN FIX: In 'sent' mailbox, show "To: recipients", else show "Sender"
-            const senderLabel = (mailbox === 'sent') ? `To: ${email.recipients.join(', ')}` : email.sender;
-
+           
+            const userEmail = window.CURRENT_USER_EMAIL;
+            const senderDisplay = email.sender === userEmail ? 'You' : email.sender;
+            const recipientsDisplay = email.recipients.map(r => r === userEmail ? 'You' : r).join(', ');
+            const senderLabel = (mailbox === 'sent') ? `To: ${recipientsDisplay}` : senderDisplay;
             row.innerHTML = `
                 <div class="email-sender text-truncate">${escapeHtml(senderLabel)}</div>
                 <div class="email-content">
@@ -133,117 +135,203 @@ function load_mailbox(mailbox) {
                 </div>
                 <div class="email-timestamp">${email.timestamp}</div>
             `;
-
-            // THE CLICK FIX: Attach event listener to the container row
             row.addEventListener('click', () => view_email(email.id, mailbox));
-            
+           
             list.append(row);
         });
-        
+       
         view.append(list);
     })
     .catch(err => {
         view.innerHTML = `<div class="error-state">${MESSAGES.load.failed(mailbox)}</div>`;
     });
 }
-
 /**
  * Email Detail View
  */
-/* Email Detail Layout */
-.email-detail-container {
-    background: #fff;
-    border-radius: 12px;
-    padding: 0;
-    overflow: hidden;
+function view_email(id, mailbox) {
+    show_view('email');
+    const view = document.querySelector('#email-view');
+    view.innerHTML = `<div class="loading"><div class="spinner"></div><p>Loading email...</p></div>`;
+    fetch(`/emails/${id}`)
+    .then(response => response.json())
+    .then(email => {
+        view.innerHTML = '';
+        updateToolbarTitle(escapeHtml(email.subject) || 'Email');
+        // Toolbar
+        const toolbar = document.createElement('div');
+        toolbar.className = 'email-detail-toolbar';
+        const actions = document.createElement('div');
+        actions.className = 'actions-group';
+        // Mark read/unread
+        const markBtn = document.createElement('button');
+        markBtn.className = 'btn-action';
+        markBtn.innerText = email.read ? 'Mark unread' : 'Mark read';
+        markBtn.onclick = () => toggle_read(email.id, email.read, mailbox);
+        actions.appendChild(markBtn);
+        // Reply button
+        const replyBtn = document.createElement('button');
+        replyBtn.className = 'btn-action btn-reply';
+        replyBtn.innerText = 'Reply';
+        replyBtn.onclick = () => reply_email(email);
+        actions.appendChild(replyBtn);
+        // Archive/Unarchive (not for sent or trash)
+        if (mailbox !== 'sent' && mailbox !== 'trash') {
+            const archiveBtn = document.createElement('button');
+            archiveBtn.className = 'btn-action';
+            archiveBtn.innerText = email.archived ? 'Unarchive' : 'Archive';
+            archiveBtn.onclick = () => toggle_archive(email.id, email.archived, mailbox);
+            actions.appendChild(archiveBtn);
+        }
+        // Trash/Restore/Delete Forever
+        if (mailbox !== 'trash') {
+            const trashBtn = document.createElement('button');
+            trashBtn.className = 'btn-action btn-danger';
+            trashBtn.innerText = 'Trash';
+            trashBtn.onclick = () => move_to_trash(email.id, mailbox);
+            actions.appendChild(trashBtn);
+        } else {
+            const restoreBtn = document.createElement('button');
+            restoreBtn.className = 'btn-action';
+            restoreBtn.innerText = 'Restore';
+            restoreBtn.onclick = () => restore_from_trash(email.id);
+            actions.appendChild(restoreBtn);
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'btn-action btn-perm';
+            deleteBtn.innerText = 'Delete Forever';
+            deleteBtn.onclick = () => perm_delete(email.id);
+            actions.appendChild(deleteBtn);
+        }
+        toolbar.appendChild(actions);
+        view.appendChild(toolbar);
+        // Header card
+        const userEmail = window.CURRENT_USER_EMAIL;
+        const senderDisplay = email.sender === userEmail ? 'You' : email.sender;
+        const recipientsDisplay = email.recipients.map(r => r === userEmail ? 'You' : r).join(', ');
+        const header = document.createElement('div');
+        header.className = 'email-header-card';
+        header.innerHTML = `
+            <div class="email-header-row">
+                <span class="header-label">From:</span>
+                <span>${escapeHtml(senderDisplay)}</span>
+            </div>
+            <div class="email-header-row">
+                <span class="header-label">To:</span>
+                <span>${escapeHtml(recipientsDisplay)}</span>
+            </div>
+            <div class="email-header-row">
+                <span class="header-label">Subject:</span>
+                <span>${escapeHtml(email.subject)}</span>
+            </div>
+            <div class="email-header-row">
+                <span class="header-label">Timestamp:</span>
+                <span>${escapeHtml(email.timestamp)}</span>
+            </div>
+        `;
+        view.appendChild(header);
+        // Body
+        const body = document.createElement('div');
+        body.className = 'email-body-content';
+        body.innerHTML = escapeHtml(email.body).replace(/\n/g, '<br>');
+        view.appendChild(body);
+        // Mark as read if not already
+        if (!email.read) {
+            fetch(`/emails/${id}`, {
+                method: 'PUT',
+                body: JSON.stringify({ read: true })
+            });
+        }
+    })
+    .catch(err => {
+        view.innerHTML = `<div class="error-state">Failed to load email.</div>`;
+    });
 }
-
-/* Professional Toolbar */
-.email-detail-toolbar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 12px 20px;
-    background: #f8f9fa;
-    border-bottom: 1px solid #dadce0;
-    position: sticky;
-    top: 0;
-    z-index: 10;
+/**
+ * Email Actions
+ */
+function toggle_read(id, read, mailbox) {
+    fetch(`/emails/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ read: !read })
+    })
+    .then(() => {
+        view_email(id, mailbox);
+        showNotification(MESSAGES.mark[!read ? 'read' : 'unread'], 'success');
+    })
+    .catch(() => showNotification(MESSAGES.archive.failed, 'error'));
 }
-
-.actions-group {
-    display: flex;
-    gap: 10px;
+function reply_email(email) {
+    let subject = email.subject;
+    if (!subject.startsWith('Re: ')) {
+        subject = `Re: ${subject}`;
+    }
+    let body = `\n\nOn ${email.timestamp}, ${email.sender} wrote:\n${email.body.split('\n').map(line => `> ${line}`).join('\n')}`;
+    compose_email({
+        recipients: email.sender,
+        subject: subject,
+        body: body
+    });
 }
-
-/* Modern Buttons */
-.btn-action {
-    padding: 8px 16px;
-    border-radius: 6px;
-    border: 1px solid #dadce0;
-    background: #fff;
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: background 0.2s, box-shadow 0.2s;
+function toggle_archive(id, archived, mailbox) {
+    fetch(`/emails/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ archived: !archived })
+    })
+    .then(() => {
+        load_mailbox('inbox');
+        setActiveNav('inbox');
+        showNotification(MESSAGES.archive[archived ? 'unarchived' : 'archived'], 'success');
+    })
+    .catch(() => showNotification(MESSAGES.archive.failed, 'error'));
 }
-
-.btn-action:hover {
-    background: #f1f3f4;
-    border-color: #bdc1c6;
+function move_to_trash(id, mailbox) {
+    fetch(`/emails/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ deleted: true })
+    })
+    .then(() => {
+        load_mailbox(mailbox);
+        const navId = mailbox === 'archive' ? 'archived' : mailbox;
+        setActiveNav(navId);
+        showNotification(MESSAGES.trash.moved, 'success');
+    })
+    .catch(() => showNotification(MESSAGES.archive.failed, 'error'));
 }
-
-.btn-reply {
-    background: #1a73e8;
-    color: #fff;
-    border: none;
+function restore_from_trash(id) {
+    fetch(`/emails/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ deleted: false })
+    })
+    .then(() => {
+        load_mailbox('trash');
+        setActiveNav('trash');
+        showNotification(MESSAGES.trash.restored, 'success');
+    })
+    .catch(() => showNotification(MESSAGES.archive.failed, 'error'));
 }
-
-.btn-reply:hover {
-    background: #1765cc;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+function perm_delete(id) {
+    if (confirm('Permanently delete this email? This action cannot be undone.')) {
+        fetch(`/emails/${id}`, {
+            method: 'DELETE'
+        })
+        .then(() => {
+            load_mailbox('trash');
+            setActiveNav('trash');
+            showNotification(MESSAGES.trash.permDeleted, 'success');
+        })
+        .catch(() => showNotification(MESSAGES.archive.failed, 'error'));
+    }
 }
-
-.btn-danger {
-    color: #d93025;
+/**
+ * Notification Helper
+ */
+function showNotification(message, type = 'info') {
+    const notif = document.createElement('div');
+    notif.className = `notification ${type}`;
+    notif.innerText = message;
+    document.body.appendChild(notif);
+    setTimeout(() => notif.remove(), 3000);
 }
-
-.btn-danger:hover {
-    background: #fce8e6;
-    border-color: #f5c2c7;
-}
-
-.btn-perm {
-    background: #701516;
-    color: white;
-    border: none;
-}
-
-/* Email Content Styling */
-.email-header-card {
-    padding: 24px;
-    border-bottom: 1px solid #f1f3f4;
-}
-
-.email-header-row {
-    margin-bottom: 8px;
-    font-size: 15px;
-    color: #3c4043;
-}
-
-.email-body-content {
-    padding: 24px;
-    font-size: 16px;
-    line-height: 1.6;
-    color: #202124;
-    white-space: pre-wrap;
-}
-
-/* Sidebar Trash button fix */
-#trash {
-    display: flex !important; /* Ensure it is visible */
-}
-
 /**
  * Composition Logic
  */
@@ -252,17 +340,15 @@ function compose_email(prefill = {}) {
     document.querySelector('#compose-recipients').value = prefill.recipients || '';
     document.querySelector('#compose-subject').value = prefill.subject || '';
     document.querySelector('#compose-body').value = prefill.body || '';
-    
+   
     if (!prefill.recipients) {
         document.querySelector('#compose-recipients').focus();
     }
 }
-
 function send_email() {
     const recipients = document.querySelector('#compose-recipients').value;
     const subject = document.querySelector('#compose-subject').value;
     const body = document.querySelector('#compose-body').value;
-
     fetch('/emails', {
         method: 'POST',
         body: JSON.stringify({ recipients, subject, body })
@@ -277,7 +363,6 @@ function send_email() {
         }
     });
 }
-
 /**
  * Helpers
  */
