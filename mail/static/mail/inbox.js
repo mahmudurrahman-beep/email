@@ -127,11 +127,14 @@ function load_mailbox(mailbox) {
             const senderDisplay = email.sender === userEmail ? 'You' : email.sender;
             const recipientsDisplay = email.recipients.map(r => r === userEmail ? 'You' : r).join(', ');
             const senderLabel = (mailbox === 'sent') ? `To: ${recipientsDisplay}` : senderDisplay;
+            // Clean preview: take text before quote
+            let previewText = email.body.split('\n\nOn ')[0].replace(/\n/g, ' ').trim().substring(0, 60);
+            let preview = previewText ? ` - ${escapeHtml(previewText)}...` : '';
             row.innerHTML = `
                 <div class="email-sender text-truncate">${escapeHtml(senderLabel)}</div>
                 <div class="email-content">
                     <span class="email-subject">${escapeHtml(email.subject)}</span>
-                    <span class="email-preview"> - ${escapeHtml(email.body.substring(0, 60))}...</span>
+                    <span class="email-preview">${preview}</span>
                 </div>
                 <div class="email-timestamp">${email.timestamp}</div>
             `;
@@ -163,20 +166,22 @@ function view_email(id, mailbox) {
         toolbar.className = 'email-detail-toolbar';
         const actions = document.createElement('div');
         actions.className = 'actions-group';
-        // Mark read/unread
-        const markBtn = document.createElement('button');
-        markBtn.className = 'btn-action';
-        markBtn.innerText = email.read ? 'Mark unread' : 'Mark read';
-        markBtn.onclick = () => toggle_read(email.id, email.read, mailbox);
-        actions.appendChild(markBtn);
+        // Mark read/unread only for inbox and archive
+        if (mailbox !== 'sent' && mailbox !== 'trash') {
+            const markBtn = document.createElement('button');
+            markBtn.className = 'btn-action';
+            markBtn.innerText = email.read ? 'Mark unread' : 'Mark read';
+            markBtn.onclick = () => toggle_read(email.id, email.read, mailbox);
+            actions.appendChild(markBtn);
+        }
         // Reply button
         const replyBtn = document.createElement('button');
         replyBtn.className = 'btn-action btn-reply';
         replyBtn.innerText = 'Reply';
         replyBtn.onclick = () => reply_email(email);
         actions.appendChild(replyBtn);
-        // Archive/Unarchive (not for sent or trash)
-        if (mailbox !== 'sent' && mailbox !== 'trash') {
+        // Archive/Unarchive (for inbox, sent, archive)
+        if (mailbox !== 'trash') {
             const archiveBtn = document.createElement('button');
             archiveBtn.className = 'btn-action';
             archiveBtn.innerText = email.archived ? 'Unarchive' : 'Archive';
@@ -217,7 +222,7 @@ function view_email(id, mailbox) {
             </div>
             <div class="email-header-row">
                 <span class="header-label">To:</span>
-                <span>${escapeHtml(recipientsDisplay)}</span>
+                <span>${escapeHtml(recipientDisplay)}</span>
             </div>
             <div class="email-header-row">
                 <span class="header-label">Subject:</span>
@@ -234,8 +239,8 @@ function view_email(id, mailbox) {
         body.className = 'email-body-content';
         body.innerHTML = escapeHtml(email.body).replace(/\n/g, '<br>');
         view.appendChild(body);
-        // Mark as read if not already
-        if (!email.read) {
+        // Mark as read if not already and applicable
+        if (!email.read && mailbox !== 'sent' && mailbox !== 'trash') {
             fetch(`/emails/${id}`, {
                 method: 'PUT',
                 body: JSON.stringify({ read: true })
@@ -278,8 +283,8 @@ function toggle_archive(id, archived, mailbox) {
         body: JSON.stringify({ archived: !archived })
     })
     .then(() => {
-        load_mailbox('inbox');
-        setActiveNav('inbox');
+        load_mailbox(archived ? 'archive' : 'inbox');
+        setActiveNav(archived ? 'archived' : 'inbox');
         showNotification(MESSAGES.archive[archived ? 'unarchived' : 'archived'], 'success');
     })
     .catch(() => showNotification(MESSAGES.archive.failed, 'error'));
