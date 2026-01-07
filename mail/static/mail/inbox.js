@@ -256,6 +256,10 @@ function view_email(email_id, currentMailbox = null) {
 function renderEmailView(email, container, currentMailbox) {
   container.innerHTML = '';
 
+  // Determine whether the current client user is the owner of this Email row
+  const currentUserEmail = window.CURRENT_USER_EMAIL || null;
+  const isOwner = currentUserEmail && currentUserEmail === email.user;
+
   const header = document.createElement('div');
   header.className = 'email-detail-header';
   header.innerHTML = `
@@ -306,10 +310,29 @@ function renderEmailView(email, container, currentMailbox) {
 
   const archiveBtn = document.getElementById('archive-btn');
   if (archiveBtn) {
-    // Allow archive/unarchive in all mailboxes (including sent)
+    // Archive/unarchive should work for both sent and received copies.
     archiveBtn.addEventListener('click', () => {
-      updateEmail(email.id, { archived: !email.archived })
-        .then(() => { show_notification(email.archived ? 'Moved to Inbox' : 'Archived', 'success'); load_mailbox('inbox'); setActiveNav('inbox'); })
+      const newArchived = !email.archived;
+      updateEmail(email.id, { archived: newArchived })
+        .then(() => {
+          // Choose message and destination based on whether the current user owns this Email row
+          if (newArchived) {
+            show_notification('Archived', 'success');
+            load_mailbox('archive');
+            setActiveNav('archived');
+          } else {
+            // Unarchived: go back to Inbox if recipient, Sent if owner is sender
+            if (isOwner && email.sender === currentUserEmail) {
+              show_notification('Moved to Sent', 'success');
+              load_mailbox('sent');
+              setActiveNav('sent');
+            } else {
+              show_notification('Moved to Inbox', 'success');
+              load_mailbox('inbox');
+              setActiveNav('inbox');
+            }
+          }
+        })
         .catch(() => show_notification('Update failed', 'error'));
     });
   }
@@ -334,9 +357,16 @@ function renderEmailView(email, container, currentMailbox) {
     restoreBtn.addEventListener('click', () => {
       updateEmail(email.id, { deleted: false })
         .then(() => {
-          show_notification('Restored to Inbox', 'success');
-          load_mailbox('inbox');
-          setActiveNav('inbox');
+          // If the current user owns the row and is the sender, restore to Sent; otherwise restore to Inbox
+          if (isOwner && email.sender === currentUserEmail) {
+            show_notification('Restored to Sent', 'success');
+            load_mailbox('sent');
+            setActiveNav('sent');
+          } else {
+            show_notification('Restored to Inbox', 'success');
+            load_mailbox('inbox');
+            setActiveNav('inbox');
+          }
         })
         .catch(() => show_notification('Restore failed', 'error'));
     });
