@@ -306,15 +306,12 @@ function renderEmailView(email, container, currentMailbox) {
 
   const archiveBtn = document.getElementById('archive-btn');
   if (archiveBtn) {
-    if (currentMailbox === 'sent') {
-      archiveBtn.style.display = 'none';
-    } else {
-      archiveBtn.addEventListener('click', () => {
-        updateEmail(email.id, { archived: !email.archived })
-          .then(() => { show_notification(email.archived ? 'Moved to Inbox' : 'Archived', 'success'); load_mailbox('inbox'); setActiveNav('inbox'); })
-          .catch(() => show_notification('Update failed', 'error'));
-      });
-    }
+    // Allow archive/unarchive in all mailboxes (including sent)
+    archiveBtn.addEventListener('click', () => {
+      updateEmail(email.id, { archived: !email.archived })
+        .then(() => { show_notification(email.archived ? 'Moved to Inbox' : 'Archived', 'success'); load_mailbox('inbox'); setActiveNav('inbox'); })
+        .catch(() => show_notification('Update failed', 'error'));
+    });
   }
 
   // Delete / Restore logic
