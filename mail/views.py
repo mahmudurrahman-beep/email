@@ -2,20 +2,18 @@ import json
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.db import IntegrityError
+from django.db.models import Q
 from django.http import JsonResponse, HttpResponse
 from django.shortcuts import HttpResponseRedirect, render
 from django.urls import reverse
 from django.views.decorators.csrf import csrf_exempt
-
 from .models import User, Email
-
 
 def index(request):
     if request.user.is_authenticated:
         return render(request, "mail/inbox.html")
     else:
         return HttpResponseRedirect(reverse("login"))
-
 
 @csrf_exempt
 @login_required
@@ -42,6 +40,7 @@ def compose(request):
     users = set()
     users.add(request.user)
     users.update(recipients)
+
     for user in users:
         email_obj = Email(
             user=user,
@@ -56,7 +55,6 @@ def compose(request):
         email_obj.save()
 
     return JsonResponse({"message": "Email sent successfully."}, status=201)
-
 
 @login_required
 def mailbox(request, mailbox):
@@ -97,7 +95,6 @@ def mailbox(request, mailbox):
     return JsonResponse([email.serialize() for email in emails], safe=False)
 
 
-
 @csrf_exempt
 @login_required
 def email(request, email_id):
@@ -121,25 +118,18 @@ def email(request, email_id):
         return HttpResponse(status=204)
 
     elif request.method == "DELETE":
-        # Check if the email is already in Trash (deleted=True) before allowing permanent deletion
         if email_obj.deleted:
             email_obj.delete()
             return HttpResponse(status=204)
         else:
-            return JsonResponse({
-                "error": "Move to Trash before permanent deletion."
-            }, status=400)
+            return JsonResponse({"error": "Move to Trash before permanent deletion."}, status=400)
 
     else:
-        return JsonResponse({
-            "error": "GET, PUT, or DELETE request required."
-        }, status=405)
-
-
+        return JsonResponse({"error": "GET, PUT or DELETE request required."}, status=405)
 
 def login_view(request):
     if request.method == "POST":
-        email = request.POST.get("email", "")
+        email = request.POST.get("email", "").strip()
         password = request.POST.get("password", "")
         user = authenticate(request, username=email, password=password)
         if user is not None:
@@ -150,24 +140,31 @@ def login_view(request):
     else:
         return render(request, "mail/login.html")
 
-
 def logout_view(request):
     logout(request)
     return HttpResponseRedirect(reverse("index"))
 
-
 def register(request):
     if request.method == "POST":
-        email = request.POST.get("email", "")
+        email = (request.POST.get("email") or "").strip()
         password = request.POST.get("password", "")
         confirmation = request.POST.get("confirmation", "")
+
+        if not email:
+            return render(request, "mail/register.html", {"message": "Email address is required."})
+        if not password:
+            return render(request, "mail/register.html", {"message": "Password is required."})
         if password != confirmation:
             return render(request, "mail/register.html", {"message": "Passwords must match."})
+
         try:
-            user = User.objects.create_user(email, email, password)
+            user = User.objects.create_user(username=email, email=email, password=password)
             user.save()
         except IntegrityError:
             return render(request, "mail/register.html", {"message": "Email address already taken."})
+        except ValueError:
+            return render(request, "mail/register.html", {"message": "Invalid username/email."})
+
         login(request, user)
         return HttpResponseRedirect(reverse("index"))
     else:
