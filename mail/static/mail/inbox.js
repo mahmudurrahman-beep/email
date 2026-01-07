@@ -102,6 +102,26 @@ function updateToolbarTitle(text) {
     if (title) title.textContent = text;
 }
 /**
+ * Helpers
+ */
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+function formatTimestamp(ts) {
+    const date = new Date(ts);
+    const options = {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
+    };
+    return date.toLocaleString('en-US', options);
+}
+/**
  * Mailbox Loader
  */
 function load_mailbox(mailbox) {
@@ -136,7 +156,7 @@ function load_mailbox(mailbox) {
                     <span class="email-subject">${escapeHtml(email.subject)}</span>
                     <span class="email-preview">${preview}</span>
                 </div>
-                <div class="email-timestamp">${email.timestamp}</div>
+                <div class="email-timestamp">${formatTimestamp(email.timestamp)}</div>
             `;
             row.addEventListener('click', () => view_email(email.id, mailbox));
            
@@ -222,7 +242,7 @@ function view_email(id, mailbox) {
             </div>
             <div class="email-header-row">
                 <span class="header-label">To:</span>
-                <span>${escapeHtml(recipientDisplay)}</span>
+                <span>${escapeHtml(recipientsDisplay)}</span>
             </div>
             <div class="email-header-row">
                 <span class="header-label">Subject:</span>
@@ -230,7 +250,7 @@ function view_email(id, mailbox) {
             </div>
             <div class="email-header-row">
                 <span class="header-label">Timestamp:</span>
-                <span>${escapeHtml(email.timestamp)}</span>
+                <span>${formatTimestamp(email.timestamp)}</span>
             </div>
         `;
         view.appendChild(header);
@@ -270,7 +290,7 @@ function reply_email(email) {
     if (!subject.startsWith('Re: ')) {
         subject = `Re: ${subject}`;
     }
-    let body = `\n\nOn ${email.timestamp}, ${email.sender} wrote:\n${email.body.split('\n').map(line => `> ${line}`).join('\n')}`;
+    let body = `\n\nOn ${formatTimestamp(email.timestamp)}, ${email.sender} wrote:\n${email.body.split('\n').map(line => `> ${line}`).join('\n')}`;
     compose_email({
         recipients: email.sender,
         subject: subject,
@@ -367,12 +387,4 @@ function send_email() {
             setActiveNav('sent');
         }
     });
-}
-/**
- * Helpers
- */
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
 }
