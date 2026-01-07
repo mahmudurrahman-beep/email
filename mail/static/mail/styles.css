@@ -5,22 +5,18 @@
    - "Mail" logo centered and multi-color
    - overrides at end to ensure Bootstrap doesn't break auth layout
 */
-
 /* Reset & variables */
 * { box-sizing: border-box; margin: 0; padding: 0; }
 :root{
-  --primary:#1a73e8; --primary-dark:#0d62d9; --bg:#ffffff; --bg-gray:#f6f8fc;
+  --primary:#ff5722; --primary-dark:#e64a19; --bg:#ffffff; --bg-gray:#f6f8fc;
   --border:#dadce0; --text-dark:#202124; --text-medium:#5f6368; --shadow:rgba(60,64,67,0.06);
 }
 html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--text-dark);background:var(--bg);-webkit-font-smoothing:antialiased}
-
 /* Utilities */
 .hidden{display:none!important}
 .view{width:100%}
-
 /* Layout */
 .email-app{display:flex;min-height:100vh}
-
 /* Sidebar */
 .sidebar{
   width:280px;background:var(--bg);border-right:1px solid var(--border);
@@ -37,7 +33,6 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Ro
   border:0;
   padding:6px 0;
 }
-
 /* Default gradient logo (kept for fallback) */
 .logo-text{
   font-size:26px;font-weight:700;letter-spacing:-0.5px;
@@ -45,7 +40,6 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Ro
   -webkit-background-clip:text;background-clip:text;color:transparent;
   text-align:center;width:100%;
 }
-
 /* Multi-color logo (preferred) */
 .logo-colored {
   font-size: 26px;
@@ -66,20 +60,17 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Ro
   line-height: 1;
   text-decoration: none !important;
 }
-
 /* Accessible focus ring for keyboard users (no underline) */
 .logo-container:focus {
   outline: 3px solid rgba(26,115,232,0.12);
   outline-offset: 3px;
 }
-
 /* Compose button */
 .compose-btn-container{padding:16px 24px 20px}
 .compose-btn{
   width:100%;display:flex;align-items:center;justify-content:center;padding:14px 18px;background:var(--primary);color:#fff;border:none;border-radius:12px;cursor:pointer;font-weight:600;box-shadow:0 6px 18px rgba(26,115,232,0.12);
 }
 .compose-btn:hover{background:var(--primary-dark);transform:translateY(-2px)}
-
 /* Nav */
 .nav-menu{flex:1;padding:8px 0;overflow:auto}
 .nav-item{
@@ -90,20 +81,17 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Ro
 .nav-item.active::before{content:'';position:absolute;left:0;width:4px;height:60%;background:var(--primary);border-radius:0 2px 2px 0;top:50%;transform:translateY(-50%)}
 .nav-svg{width:20px;height:20px;flex:0 0 20px;color:var(--text-medium)}
 .nav-label{font-weight:600}
-
 /* User */
 .user-section{padding:18px 24px 24px;border-top:1px solid rgba(0,0,0,0.04);margin-top:auto}
 .user-profile{display:flex;gap:12px;align-items:center;padding:12px;background:var(--bg-gray);border-radius:10px}
 .user-avatar{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,var(--primary),#4285f4);color:#fff;font-weight:700}
 .user-email{font-weight:600;font-size:14px;color:var(--text-dark);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .logout-btn{display:block;margin-top:12px;padding:10px;text-align:center;border-radius:8px;border:1px solid var(--border);color:var(--text-medium);text-decoration:none;background:#fff}
-
 /* Main */
 .main-content{flex:1;margin-left:280px;display:flex;flex-direction:column;min-height:100vh;background:var(--bg)}
 .content-toolbar{height:72px;display:flex;align-items:center;padding:0 32px;border-bottom:1px solid rgba(0,0,0,0.04);background:var(--bg);z-index:50}
 .content-toolbar h2{font-size:22px;font-weight:600}
 .content-area{flex:1;padding:32px;overflow:auto}
-
 /* Compose view */
 #compose-view{background:#fff;border-radius:12px;border:1px solid var(--border);max-width:100%;margin:0 auto;box-shadow:0 6px 20px var(--shadow)}
 .compose-header{padding:28px 36px;border-bottom:1px solid rgba(0,0,0,0.04)}
@@ -118,27 +106,24 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Ro
 .form-actions{display:flex;gap:12px;margin-top:6px;padding-top:12px;border-top:1px solid rgba(0,0,0,0.04)}
 .send-btn{background:var(--primary);color:#fff;border:none;padding:12px 28px;border-radius:10px;font-weight:700;cursor:pointer}
 .cancel-btn{background:#fff;border:2px solid var(--border);padding:10px 22px;border-radius:10px;cursor:pointer}
-
 /* Emails list */
 #emails-view{max-width:100%}
 .emails-list{background:#fff;border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:0 4px 12px var(--shadow)}
 .email-item,.email-row{display:flex;align-items:center;gap:18px;padding:18px 22px;border-bottom:1px solid rgba(0,0,0,0.04);cursor:pointer;min-height:72px}
 .email-item:last-child,.email-row:last-child{border-bottom:none}
 .email-item:hover,.email-row:hover{background:var(--bg-gray)}
-.email-item.unread,.email-row.unread{background:var(--bg)}
+.email-item.unread,.email-row.unread{background:var(--bg);font-weight:600}
 .email-item.read,.email-row.read{background:#fafafb;color:var(--text-medium)}
 .email-sender{min-width:200px;max-width:200px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .email-content{flex:1;min-width:0}
 .email-subject{font-weight:600;font-size:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.email-preview{font-size:14px;color:var(--text-medium);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.email-preview{font-size:14px;color:var(--text-medium);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:none !important}
 .email-timestamp{min-width:140px;text-align:right;color:var(--text-medium);font-weight:500;font-size:13px}
-
 /* Empty / loading */
 .empty-state,.no-emails{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:48px;background:#fff;border:1px solid var(--border);border-radius:12px;color:var(--text-medium)}
 .loading{display:flex;align-items:center;gap:12px;padding:28px;justify-content:center}
 .spinner{width:28px;height:28px;border-radius:50%;border:4px solid var(--border);border-top-color:var(--primary);animation:spin .9s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
-
 /* Email detail */
 .email-detail-header{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:18px;background:#fff;border:1px solid var(--border);border-radius:10px; position: sticky; top: 0; z-index: 20; }
 .email-detail-content{margin-top:12px}
@@ -146,36 +131,29 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Ro
 .email-header-row{display:flex;gap:12px;margin-bottom:8px}
 .header-label{font-weight:700;color:var(--text-dark);min-width:70px}
 .email-body{padding:16px;background:#fff;border:1px solid var(--border);border-radius:10px;white-space:pre-wrap;line-height:1.6; max-height:60vh; overflow:auto; margin-top:12px;}
-
 /* Buttons */
 .btn-action{padding:10px 20px;border:1px solid var(--border);background:#fff;border-radius:6px;font-size:14px;color:var(--text-medium);cursor:pointer;margin-right:8px}
 .btn-action:hover{background:#f6f8fc}
 .btn-reply{background:var(--primary);color:#fff;border-color:var(--primary)}
 .btn-reply:hover{background:var(--primary-dark)}
-
 /* Notifications */
 .notification{position:fixed;top:20px;right:20px;padding:16px 24px;border-radius:8px;font-size:14px;font-weight:500;z-index:1000;display:flex;gap:12px;align-items:center;box-shadow:0 4px 12px rgba(0,0,0,0.15)}
 .notification.success{background:#34a853;color:#fff}
 .notification.error{background:#ea4335;color:#fff}
 .notification.info{background:var(--primary);color:#fff}
-
 /* Undo toast (bottom-right) */
 .undo-toast { position:fixed; z-index:1200; display:flex; align-items:center; gap:12px; padding:12px 16px; border-radius:8px; background:var(--primary); color:#fff; box-shadow:0 8px 24px rgba(0,0,0,0.12); right:20px; bottom:20px; }
 .undo-toast .btn-action { background:#fff; color:var(--primary); border:none; padding:6px 10px; border-radius:6px; cursor:pointer; font-weight:700; }
-
 /* Auth pages: center and theme options */
 body.no-sidebar .main-content { margin-left: 0 !important; }
 body.no-sidebar .content-area {
   display:flex;align-items:center;justify-content:center;padding:48px;min-height:100vh;background:#ffffff;
 }
 body.no-sidebar .auth-card { margin:0 auto; background:#ffffff; border-radius:12px; box-shadow:0 12px 40px rgba(20,20,20,0.06); }
-
 /* Hide toolbar on auth pages */
 body.no-sidebar .content-toolbar { display: none !important; }
-
 /* Hide compose header title while composing to avoid duplicate titles */
 body.compose-active .compose-header-title { display: none; }
-
 /* Small responsive tweaks */
 @media (max-width:1024px){ .sidebar{width:240px} .main-content{margin-left:240px} .email-sender{min-width:160px;max-width:160px} }
 @media (max-width:768px){
@@ -192,7 +170,6 @@ body.compose-active .compose-header-title { display: none; }
   .logo-text{font-size:20px}
   .compose-btn{padding:12px}
 }
-
 /* ===== AUTH OVERRIDES (end of file) ===== */
 body.no-sidebar .main-content { margin-left: 0 !important; }
 body.no-sidebar .content-toolbar { display: none !important; }
@@ -229,7 +206,6 @@ body.no-sidebar .content-area { background: #ffffff !important; }
   font-weight:700 !important;
   border:none !important;
 }
-
 /* Reply and quoted block styles */
 .reply-text {
   white-space: pre-wrap;
@@ -237,7 +213,6 @@ body.no-sidebar .content-area { background: #ffffff !important; }
   font-size: 15px;
   color: var(--text-dark);
 }
-
 .quoted-block {
   margin-top: 12px;
   padding: 10px 14px;
@@ -247,14 +222,12 @@ body.no-sidebar .content-area { background: #ffffff !important; }
   color: var(--text-medium);
   white-space: pre-wrap;
 }
-
 /* Remove underline from the logo anchor and its children (strong selector to override defaults) */
 .logo-section .logo-container,
 .logo-section .logo-container * {
   text-decoration: none !important;
   border-bottom: 0 !important;
 }
-
 /* Ensure anchor does not show default focus underline while keeping accessible focus */
 .logo-section .logo-container {
   display: flex;
@@ -263,9 +236,12 @@ body.no-sidebar .content-area { background: #ffffff !important; }
   text-decoration: none !important;
   border: 0;
 }
-
 /* Keep a visible focus ring for keyboard users without an underline */
 .logo-section .logo-container:focus {
   outline: 3px solid rgba(26,115,232,0.12);
   outline-offset: 3px;
+}
+/* Additional fixes for no underlines in email rows */
+.email-row, .email-row * {
+  text-decoration: none !important;
 }
