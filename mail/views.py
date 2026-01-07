@@ -47,7 +47,7 @@ def compose(request):
     for user in users:
         email_obj = Email(
             user=user,
-            sender=request.user,
+            sender=request.user.email,
             subject=subject,
             body=body,
             read=(user == request.user)
@@ -62,15 +62,17 @@ def compose(request):
 
 @login_required
 def mailbox(request, mailbox):
+    """
+    mailbox: 'inbox', 'sent', 'archive', 'trash'
+    Note: sent and inbox exclude archived/deleted copies.
+    Archive includes archived copies where user is sender or recipient.
+    """
     if mailbox == "inbox":
         emails = Email.objects.filter(user=request.user, recipients=request.user, archived=False, deleted=False)
     elif mailbox == "sent":
-        # Exclude archived messages from Sent so archived sent items no longer remain in Sent
-        emails = Email.objects.filter(user=request.user, sender=request.user, archived=False, deleted=False)
+        emails = Email.objects.filter(user=request.user, sender=request.user.email, archived=False, deleted=False)
     elif mailbox == "archive":
-        # Include archived copies where the current user is either a recipient OR the sender
-        from django.db.models import Q
-        emails = Email.objects.filter(user=request.user, archived=True, deleted=False).filter(Q(recipients=request.user) | Q(sender=request.user))
+        emails = Email.objects.filter(user=request.user, archived=True, deleted=False).filter(Q(recipients=request.user) | Q(sender=request.user.email))
     elif mailbox == "trash":
         emails = Email.objects.filter(user=request.user, deleted=True)
     else:
@@ -83,6 +85,13 @@ def mailbox(request, mailbox):
 @csrf_exempt
 @login_required
 def email(request, email_id):
+    """
+    GET: return email
+    PUT: update fields (read, archived, deleted)
+         - when deleted becomes True, set previous_mailbox to the logical origin
+         - when deleted becomes False (restore), clear previous_mailbox
+    DELETE: permanently delete only if deleted==True
+    """
     try:
         email_obj = Email.objects.get(user=request.user, pk=email_id)
     except Email.DoesNotExist:
@@ -93,12 +102,42 @@ def email(request, email_id):
 
     elif request.method == "PUT":
         data = json.loads(request.body or "{}")
+
+        # read/archived updates
         if "read" in data:
             email_obj.read = bool(data["read"])
+
         if "archived" in data:
             email_obj.archived = bool(data["archived"])
+
+        # deleted toggle: when moving to trash, set previous_mailbox; when restoring, clear it
         if "deleted" in data:
-            email_obj.deleted = bool(data["deleted"])
+            new_deleted = bool(data["deleted"])
+            # If moving to trash and it wasn't deleted before, set previous_mailbox
+            if new_deleted and not email_obj.deleted:
+                # Determine logical origin:
+                # If archived flag is True -> previous_mailbox = 'archive'
+                # Else if sender equals the user's email -> 'sent'
+                # Else -> 'inbox'
+                if email_obj.archived:
+                    email_obj.previous_mailbox = "archive"
+                elif email_obj.sender == request.user.email:
+                    email_obj.previous_mailbox = "sent"
+                else:
+                    email_obj.previous_mailbox = "inbox"
+                email_obj.deleted = True
+            elif not new_deleted and email_obj.deleted:
+                # Restoring: clear previous_mailbox (we'll let client route using previous_mailbox before clearing)
+                email_obj.deleted = False
+                # Keep previous_mailbox value for one more serialize if needed by client,
+                # but clear it so future deletes will recompute origin.
+                # To let client read it, we clear after saving below.
+                prev = email_obj.previous_mailbox
+                email_obj.previous_mailbox = None
+                email_obj.save()
+                # Return 204; client can fetch the email again if needed.
+                return HttpResponse(status=204)
+
         email_obj.save()
         return HttpResponse(status=204)
 
@@ -134,7 +173,6 @@ def logout_view(request):
 
 def register(request):
     if request.method == "POST":
-        # Basic validation to avoid creating users with empty username/email
         email = (request.POST.get("email") or "").strip()
         password = request.POST.get("password", "")
         confirmation = request.POST.get("confirmation", "")
@@ -149,13 +187,11 @@ def register(request):
             return render(request, "mail/register.html", {"message": "Passwords must match."})
 
         try:
-            # Use explicit keyword args to ensure username is set
             user = User.objects.create_user(username=email, email=email, password=password)
             user.save()
         except IntegrityError:
             return render(request, "mail/register.html", {"message": "Email address already taken."})
         except ValueError:
-            # Defensive: create_user can raise ValueError if username is invalid or empty
             return render(request, "mail/register.html", {"message": "Invalid username/email."})
 
         login(request, user)
