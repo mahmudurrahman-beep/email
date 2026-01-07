@@ -7,6 +7,14 @@
   <title>{% block title %}Mail{% endblock %}</title>
   <link rel="stylesheet" href="{% static 'mail/styles.css' %}">
   {% block script %}{% endblock %}
+  {% if request.user.is_authenticated %}
+  <script>
+    // Expose current user's email to client-side JS for ownership checks
+    window.CURRENT_USER_EMAIL = "{{ request.user.email|escapejs }}";
+  </script>
+  {% else %}
+  <script>window.CURRENT_USER_EMAIL = null;</script>
+  {% endif %}
 </head>
 
 <body class="{% if not request.user.is_authenticated %}no-sidebar{% endif %}">
