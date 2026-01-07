@@ -1,14 +1,13 @@
 // static/mail/inbox.js
-// inbox.js - inbox client with archive guard for Sent and Trash feature-detection
-// All user-facing strings centralized in MESSAGES for easy edits/localization.
+// Full client script with previous_mailbox-aware restore routing and clearer notifications.
 
 const MESSAGES = {
   send: { sending: 'Sending...', sent: 'Email sent.', failed: 'Failed to send email.' },
   validation: { noRecipient: 'Please enter at least one recipient.' },
   load: { loading: (mb) => `Loading ${mb}...`, failed: (mb) => `Failed to load ${mb}.` },
-  archive: { archived: 'Archived', unarchivedInbox: 'Moved to Inbox', unarchivedSent: 'Moved to Sent', failed: 'Update failed' },
-  trash: { notSupported: 'Delete not supported by server', moved: 'Moved to Trash', restored: 'Restored', failedMove: 'Failed to move to Trash', permDeleted: 'Permanently deleted', permFailed: 'Permanent delete failed' },
-  restore: { toArchive: 'Restored to Archive', toSent: 'Restored to Sent', toInbox: 'Restored to Inbox', failed: 'Restore failed' },
+  archive: { archived: 'Archived (your copy)', unarchivedInbox: 'Moved to Inbox (your copy)', unarchivedSent: 'Moved to Sent (your copy)', failed: 'Update failed' },
+  trash: { notSupported: 'Delete not supported by server', moved: 'Moved to Trash (your copy)', restored: 'Restored (your copy)', failedMove: 'Failed to move to Trash', permDeleted: 'Permanently deleted', permFailed: 'Permanent delete failed' },
+  restore: { toArchive: 'Restored to Archive (your copy)', toSent: 'Restored to Sent (your copy)', toInbox: 'Restored to Inbox (your copy)', failed: 'Restore failed' },
   mark: { read: 'Marked read', unread: 'Marked unread', failed: 'Failed to update read state' },
   confirm: { permDelete: 'Permanently delete this message? This cannot be undone.' },
   compose: { newEmail: 'New Email' }
@@ -62,7 +61,6 @@ function setupNavigation() {
     });
   });
 
-  // Add Trash nav item dynamically if not present (will be hidden if unsupported)
   if (!document.querySelector('#trash')) {
     const nav = document.querySelector('.nav-menu');
     if (nav) {
@@ -121,12 +119,10 @@ function show_view(view) {
 
 function setActiveNav(activeId) {
   document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
-  // Manage body class for trash view so CSS can hide/show buttons
   document.body.classList.remove('trash-view');
   if (activeId) {
     const el = document.querySelector(`#${activeId}`);
     if (el) el.classList.add('active');
-    // Add trash-view class when Trash is active
     if (activeId === 'trash') document.body.classList.add('trash-view');
     updateToolbarTitle(activeId === 'archived' ? 'Archive' : activeId.charAt(0).toUpperCase() + activeId.slice(1));
   } else {
@@ -210,8 +206,12 @@ function createEmailElement(email, mailbox) {
   const previewText = getReplyOnlyPreview(email.body || '');
   const ts = formatTimestamp(email.timestamp);
 
+  // Show "You" badge in lists when the current user owns the row
+  const currentUser = window.CURRENT_USER_EMAIL || null;
+  const ownerBadge = (currentUser && currentUser === email.user) ? ' <span class="owner-badge">(You)</span>' : '';
+
   div.innerHTML = `
-    <div class="email-sender">${escapeHtml(email.sender)}</div>
+    <div class="email-sender">${escapeHtml(email.sender)}${ownerBadge}</div>
     <div class="email-content">
       <div class="email-subject">${escapeHtml(email.subject || '(no subject)')}</div>
       <div class="email-preview">${escapeHtml(previewText.substring(0, 120))}${previewText.length > 120 ? '...' : ''}</div>
@@ -222,12 +222,11 @@ function createEmailElement(email, mailbox) {
   return div;
 }
 
-/* Keep only the user's reply, drop the quoted part starting at "On ... wrote:" */
 function getReplyOnlyPreview(body) {
   const lines = String(body).split('\n');
   const idx = lines.findIndex(l => /^On .+ wrote:$/i.test(l.trim()));
   const replyLines = idx >= 0 ? lines.slice(0, idx) : lines;
-  const reply = replyLines.join(' ').replace(/\s+/g, ' ').trim(); // compact spaces for preview
+  const reply = replyLines.join(' ').replace(/\s+/g, ' ').trim();
   return reply || body.substring(0, 140);
 }
 
@@ -258,7 +257,6 @@ function view_email(email_id, currentMailbox = null) {
     .then(email => {
       if (!email.read) {
         updateEmail(email.id, { read: true }).catch(()=>{});
-        // optimistic update in list
         const item = document.querySelector(`.email-item[data-id="${email.id}"]`);
         if (item) { item.classList.remove('unread'); item.classList.add('read'); }
       }
@@ -268,19 +266,25 @@ function view_email(email_id, currentMailbox = null) {
       view.innerHTML = `<div class="error-state"><p>${escapeHtml(err.message)}</p><button class="btn-action btn-back" onclick="load_mailbox('inbox'); setActiveNav('inbox');">Back</button></div>`;
     });
 }
+
 function renderEmailView(email, container, currentMailbox) {
   container.innerHTML = '';
 
-  // Determine whether the current client user is the owner of this Email row
   const currentUserEmail = window.CURRENT_USER_EMAIL || null;
   const isOwner = currentUserEmail && currentUserEmail === email.user;
 
   const header = document.createElement('div');
   header.className = 'email-detail-header';
+
+  // Show owner and original mailbox badge if available
+  const original = email.previous_mailbox ? `Original: ${capitalize(email.previous_mailbox)}` : (email.archived ? 'Original: Archive' : (isOwner && email.sender === currentUserEmail ? 'Original: Sent' : 'Original: Inbox'));
+  const ownerLabel = isOwner ? 'You' : email.user;
+
   header.innerHTML = `
     <div style="flex:1;min-width:0">
-      <div class="email-subject" style="font-size:18px;font-weight:700;margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
-        ${escapeHtml(email.subject || '(no subject)')}
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px">
+        <div class="email-subject" style="font-size:18px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(email.subject || '(no subject)')}</div>
+        <div class="meta-badges" style="font-size:12px;color:var(--text-medium)">${escapeHtml(ownerLabel)} · ${escapeHtml(original)}</div>
       </div>
       <div style="color:var(--text-medium);font-size:14px">
         <div><strong>From:</strong> ${escapeHtml(email.sender)}</div>
@@ -298,17 +302,13 @@ function renderEmailView(email, container, currentMailbox) {
     </div>
   `;
 
-  // Split body: reply vs quoted block
   const { replyText, quotedLines } = splitReplyAndQuote(email.body || '');
   const body = document.createElement('div');
   body.className = 'email-body';
-
   const replyEl = document.createElement('div');
   replyEl.className = 'reply-text';
   replyEl.textContent = replyText;
-
   body.appendChild(replyEl);
-
   if (quotedLines.length) {
     const quoteEl = document.createElement('div');
     quoteEl.className = 'quoted-block';
@@ -325,18 +325,15 @@ function renderEmailView(email, container, currentMailbox) {
 
   const archiveBtn = document.getElementById('archive-btn');
   if (archiveBtn) {
-    // Archive/unarchive should work for both sent and received copies.
     archiveBtn.addEventListener('click', () => {
       const newArchived = !email.archived;
       updateEmail(email.id, { archived: newArchived })
         .then(() => {
-          // Choose message and destination based on whether the current user owns this Email row
           if (newArchived) {
             show_notification(MESSAGES.archive.archived, 'success');
             load_mailbox('archive');
             setActiveNav('archived');
           } else {
-            // Unarchived: go back to Inbox if recipient, Sent if owner is sender
             if (isOwner && email.sender === currentUserEmail) {
               show_notification(MESSAGES.archive.unarchivedSent, 'success');
               load_mailbox('sent');
@@ -352,46 +349,35 @@ function renderEmailView(email, container, currentMailbox) {
     });
   }
 
-  // Delete / Restore logic
   const deleteBtn = document.getElementById('delete-btn');
-  // If viewing Trash mailbox, show Restore button next to Delete Permanently
   if (currentMailbox === 'trash') {
-    // Ensure delete button shows "Delete Permanently"
     if (deleteBtn) deleteBtn.textContent = 'Delete Permanently';
-
-    // Create Restore button and insert before delete button
     const restoreBtn = document.createElement('button');
     restoreBtn.className = 'btn-action';
     restoreBtn.id = 'restore-btn';
     restoreBtn.textContent = 'Restore';
-    // Insert restore button into actions container
     const actionsContainer = header.querySelector('.email-actions');
     if (actionsContainer) actionsContainer.insertBefore(restoreBtn, deleteBtn);
 
-    // Wire restore action
     restoreBtn.addEventListener('click', () => {
+      // Use previous_mailbox if present; otherwise infer
+      const dest = email.previous_mailbox || (email.archived ? 'archive' : (isOwner && email.sender === currentUserEmail ? 'sent' : 'inbox'));
       updateEmail(email.id, { deleted: false })
         .then(() => {
-          // If the email was archived before deletion, restore back to Archive.
-          // Otherwise, if the current user owns the row and is the sender, restore to Sent; otherwise restore to Inbox.
-          if (email.archived) {
+          if (dest === 'archive') {
             show_notification(MESSAGES.restore.toArchive, 'success');
-            load_mailbox('archive');
-            setActiveNav('archived');
-          } else if (isOwner && email.sender === currentUserEmail) {
+            load_mailbox('archive'); setActiveNav('archived');
+          } else if (dest === 'sent') {
             show_notification(MESSAGES.restore.toSent, 'success');
-            load_mailbox('sent');
-            setActiveNav('sent');
+            load_mailbox('sent'); setActiveNav('sent');
           } else {
             show_notification(MESSAGES.restore.toInbox, 'success');
-            load_mailbox('inbox');
-            setActiveNav('inbox');
+            load_mailbox('inbox'); setActiveNav('inbox');
           }
         })
         .catch(() => show_notification(MESSAGES.restore.failed, 'error'));
     });
 
-    // Wire permanent delete (confirm)
     if (deleteBtn) {
       deleteBtn.addEventListener('click', () => {
         if (!confirm(MESSAGES.confirm.permDelete)) return;
@@ -401,7 +387,6 @@ function renderEmailView(email, container, currentMailbox) {
       });
     }
   } else {
-    // Normal inbox/archive/sent behavior: move to trash or permanent delete if already deleted
     if (deleteBtn) {
       deleteBtn.addEventListener('click', () => {
         if (!SUPPORTS_TRASH) { show_notification(MESSAGES.trash.notSupported, 'error'); return; }
@@ -430,22 +415,18 @@ function renderEmailView(email, container, currentMailbox) {
   });
 }
 
-/* Parse the body into reply text + quoted lines starting with "On ... wrote:" */
+/* Helpers and utilities (unchanged) */
 function splitReplyAndQuote(body) {
   const lines = String(body).split('\n');
   const idx = lines.findIndex(l => /^On .+ wrote:$/i.test(l.trim()));
   if (idx >= 0) {
     const replyLines = lines.slice(0, idx);
-    const quoteLines = lines.slice(idx); // include the marker and everything after
-    return {
-      replyText: replyLines.join('\n').trim(),
-      quotedLines: quoteLines
-    };
+    const quoteLines = lines.slice(idx);
+    return { replyText: replyLines.join('\n').trim(), quotedLines: quoteLines };
   }
   return { replyText: body.trim(), quotedLines: [] };
 }
 
-/* Helpers for update actions */
 function updateEmail(id, payload) {
   return fetch(`/emails/${id}`, {
     method: 'PUT',
@@ -456,18 +437,6 @@ function updateEmail(id, payload) {
   });
 }
 
-/* Utilities: archive toggle wrapper */
-function toggleArchive(id, currentlyArchived) {
-  updateEmail(id, { archived: !currentlyArchived })
-    .then(() => {
-      show_notification(currentlyArchived ? MESSAGES.archive.unarchivedInbox : MESSAGES.archive.archived, 'success');
-      load_mailbox('inbox');
-      setActiveNav('inbox');
-    })
-    .catch(() => show_notification(MESSAGES.archive.failed, 'error'));
-}
-
-/* Notifications */
 function show_notification(message, type = 'info') {
   const existing = document.querySelector('.notification'); if (existing) existing.remove();
   const n = document.createElement('div'); n.className = `notification ${type}`;
@@ -479,33 +448,27 @@ function show_notification(message, type = 'info') {
   setTimeout(() => { if (n.parentNode) { n.style.opacity = '0'; n.style.transform = 'translateX(100%)'; setTimeout(() => n.remove(), 300); } }, 4000);
 }
 
-/* Undo toast helper */
 function showUndoToast(message, undoCallback, timeout = 5000) {
   const existing = document.querySelector('.undo-toast');
   if (existing) existing.remove();
-
   const t = document.createElement('div');
   t.className = 'undo-toast';
   t.innerHTML = `<span class="notification-message">${escapeHtml(message)}</span><button class="btn-action">Undo</button>`;
-
   const btn = t.querySelector('button');
   btn.addEventListener('click', () => {
     if (typeof undoCallback === 'function') undoCallback();
     t.remove();
   });
-
   document.body.appendChild(t);
   setTimeout(() => { if (t.parentNode) t.remove(); }, timeout);
 }
 
-/* Reply helper */
 function replyToEmailFromView(id) {
   fetch(`/emails/${id}`)
     .then(res => res.json())
     .then(email => {
       let subj = email.subject || '';
       if (!/^Re:/i.test(subj)) subj = `Re: ${subj}`;
-      // Plaintext quoted block (no HTML)
       const quoted = [
         '',
         '',
@@ -517,7 +480,6 @@ function replyToEmailFromView(id) {
     .catch(() => show_notification(MESSAGES.send.failed, 'error'));
 }
 
-/* Utilities */
 function formatTimestamp(ts) {
   if (!ts) return '';
   const d = new Date(ts);
