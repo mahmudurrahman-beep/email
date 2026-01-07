@@ -2,82 +2,92 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>{% block title %}Mail{% endblock %}</title>
-  <link rel="stylesheet" href="{% static 'mail/styles.css' %}">
-  {% block script %}{% endblock %}
-</head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>{% block title %}Mail{% endblock %}</title>
+    <link rel="stylesheet" href="{% static 'mail/styles.css' %}">
+    
+    {% block script %}{% endblock %}
 
-<body class="{% if not request.user.is_authenticated %}no-sidebar{% endif %}">
-  <div class="email-app">
     {% if request.user.is_authenticated %}
-    <aside class="sidebar" role="navigation" aria-label="Main navigation">
-      <div class="logo-section">
-        <a class="logo-container" href="#">
-    <div class="logo-text logo-colored">
-  <span style="color:#ea4335">M</span>
-  <span style="color:#fbbc05">A</span>
-  <span style="color:#34a853">I</span>
-  <span style="color:#4285f4">L</span>
-</div>
-
-        </a>
-      </div>
-
-      <div class="compose-btn-container">
-        <button id="compose-btn" class="compose-btn" type="button" aria-label="Compose">
-          <span class="compose-label">Compose</span>
-        </button>
-      </div>
-
-      <nav class="nav-menu" aria-label="Mail folders">
-        <div id="inbox" class="nav-item" role="button" tabindex="0">
-          <svg class="nav-svg" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M19 3H4.99C3.89 3 3 3.9 3 5v11c0 1.1.89 2 1.99 2H19c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 13H4.99V5H19v11zM6 17h12v2H6z"/></svg>
-          <span class="nav-label">Inbox</span>
-        </div>
-
-        <div id="sent" class="nav-item" role="button" tabindex="0">
-          <svg class="nav-svg" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
-          <span class="nav-label">Sent</span>
-        </div>
-
-        <div id="archived" class="nav-item" role="button" tabindex="0">
-          <svg class="nav-svg" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M20.54 5.23L19.2 3H4.8L3.46 5.23 2 8v11a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8l-1.46-2.77zM12 17a3 3 0 1 1 0-6 3 3 0 0 1 0 6zM4 8h16l-1.2-2H5.2L4 8z"/></svg>
-          <span class="nav-label">Archived</span>
-        </div>
-      </nav>
-
-      <div class="user-section">
-        <div class="user-profile">
-          <div class="user-avatar" aria-hidden="true">{{ request.user.email|first|upper }}</div>
-          <div class="user-info">
-            <div class="user-email">{{ request.user.email }}</div>
-            <div class="user-status">Online</div>
-          </div>
-        </div>
-        <a href="{% url 'logout' %}" class="logout-btn">Logout</a>
-      </div>
-    </aside>
+    <script>
+        // Expose current user's email to client-side JS for ownership checks
+        window.CURRENT_USER_EMAIL = "{{ request.user.email|escapejs }}";
+    </script>
+    {% else %}
+    <script>window.CURRENT_USER_EMAIL = null;</script>
     {% endif %}
+</head>
+<body class="{% if not request.user.is_authenticated %}no-sidebar{% endif %}">
+    <div class="email-app">
+        {% if request.user.is_authenticated %}
+        <aside class="sidebar" role="navigation" aria-label="Main navigation">
+            <div class="logo-section">
+                <a class="logo-container" href="{% url 'index' %}">
+                    <div class="logo-text logo-colored">
+                        <span style="color:#ea4335">M</span>
+                        <span style="color:#fbbc05">A</span>
+                        <span style="color:#34a853">I</span>
+                        <span style="color:#4285f4">L</span>
+                    </div>
+                </a>
+            </div>
 
-    <main class="main-content" role="main">
-      <header class="content-toolbar">
-        <h2 id="mailbox-title">Inbox</h2>
-      </header>
+            <div class="compose-btn-container">
+                <button id="compose-btn" class="compose-btn" type="button" aria-label="Compose">
+                    <span class="compose-label">Compose</span>
+                </button>
+            </div>
 
-      <section class="content-area content-body">
-        {% block body %}{% endblock %}
-      </section>
-    </main>
-  </div>
+            <nav class="nav-menu" aria-label="Mail folders">
+                <div id="inbox" class="nav-item" role="button" tabindex="0">
+                    <svg class="nav-svg" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M19 3H4.99C3.89 3 3 3.9 3 5v11c0 1.1.89 2 1.99 2H19c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 13H4.99V5H19v11zM6 17h12v2H6z"/></svg>
+                    <span class="nav-label">Inbox</span>
+                </div>
+                <div id="sent" class="nav-item" role="button" tabindex="0">
+                    <svg class="nav-svg" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
+                    <span class="nav-label">Sent</span>
+                </div>
+                <div id="archived" class="nav-item" role="button" tabindex="0">
+                    <svg class="nav-svg" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M20.54 5.23L19.2 3H4.8L3.46 5.23 2 8v11a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8l-1.46-2.77zM12 17a3 3 0 1 1 0-6 3 3 0 0 1 0 6zM4 8h16l-1.2-2H5.2L4 8z"/></svg>
+                    <span class="nav-label">Archived</span>
+                </div>
+                <!-- Trash item will be injected here by inbox.js if supported -->
+            </nav>
 
-  {% block extra_scripts %}
-  <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      if (!document.querySelector('.sidebar')) document.body.classList.add('no-sidebar');
-    });
-  </script>
-  {% endblock %}
+            <div class="user-section">
+                <div class="user-profile">
+                    <div class="user-avatar" aria-hidden="true">{{ request.user.email|first|upper }}</div>
+                    <div class="user-info">
+                        <div class="user-email text-truncate">{{ request.user.email }}</div>
+                        <div class="user-status">Online</div>
+                    </div>
+                </div>
+                <a href="{% url 'logout' %}" class="logout-btn">Logout</a>
+            </div>
+        </aside>
+        {% endif %}
+
+        <main class="main-content" role="main">
+            <header class="content-toolbar">
+                <h2 id="mailbox-title">Inbox</h2>
+            </header>
+
+            <section class="content-area content-body">
+                {% block body %}{% endblock %}
+            </section>
+        </main>
+    </div>
+
+    {% block extra_scripts %}
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Ensure no-sidebar layout if sidebar isn't rendered
+            if (!document.querySelector('.sidebar')) {
+                document.body.classList.add('no-sidebar');
+            }
+        });
+    </script>
+    {% endblock %}
 </body>
 </html>
