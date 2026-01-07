@@ -37,6 +37,8 @@ def compose(request):
     subject = data.get("subject", "")
     body = data.get("body", "")
 
+    # Create separate copies for each participant (sender and all recipients)
+    # This allows individual archiving/deletion without affecting others
     users = set()
     users.add(request.user)
     users.update(recipients)
@@ -47,7 +49,7 @@ def compose(request):
             sender=request.user,
             subject=subject,
             body=body,
-            read=(user == request.user)
+            read=(user == request.user) # Sender's copy is marked as read
         )
         email_obj.save()
         for recipient in recipients:
@@ -58,7 +60,11 @@ def compose(request):
 
 @login_required
 def mailbox(request, mailbox):
-    # Filter emails based on the requested mailbox
+    """
+    Retrieves the specific mailbox list. 
+    Design Note: Sent folder should exclude archived/deleted items 
+    so they move to those respective folders when modified.
+    """
     if mailbox == "inbox":
         emails = Email.objects.filter(
             user=request.user, 
@@ -67,7 +73,6 @@ def mailbox(request, mailbox):
             deleted=False
         )
     elif mailbox == "sent":
-        # Exclude archived messages so they move to the Archive folder
         emails = Email.objects.filter(
             user=request.user, 
             sender=request.user, 
@@ -75,14 +80,14 @@ def mailbox(request, mailbox):
             deleted=False
         )
     elif mailbox == "archive":
-        # Include archived copies where user is either recipient OR sender
-        from django.db.models import Q
+        # Any mail that is archived but not deleted
         emails = Email.objects.filter(
             user=request.user, 
             archived=True, 
             deleted=False
-        ).filter(Q(recipients=request.user) | Q(sender=request.user))
+        )
     elif mailbox == "trash":
+        # Everything soft-deleted
         emails = Email.objects.filter(
             user=request.user, 
             deleted=True
@@ -90,7 +95,7 @@ def mailbox(request, mailbox):
     else:
         return JsonResponse({"error": "Invalid mailbox."}, status=400)
 
-    # Order emails by most recent first
+    # Order by most recent first
     emails = emails.order_by("-timestamp").all()
     return JsonResponse([email.serialize() for email in emails], safe=False)
 
@@ -98,7 +103,11 @@ def mailbox(request, mailbox):
 @csrf_exempt
 @login_required
 def email(request, email_id):
+    """
+    Handles GET (view), PUT (update flags), and DELETE (permanent removal).
+    """
     try:
+        # Crucial: only get email belonging to the current user's copy
         email_obj = Email.objects.get(user=request.user, pk=email_id)
     except Email.DoesNotExist:
         return JsonResponse({"error": "Email not found."}, status=404)
@@ -108,6 +117,7 @@ def email(request, email_id):
 
     elif request.method == "PUT":
         data = json.loads(request.body or "{}")
+        # Update boolean flags if provided in request
         if "read" in data:
             email_obj.read = bool(data["read"])
         if "archived" in data:
@@ -118,6 +128,7 @@ def email(request, email_id):
         return HttpResponse(status=204)
 
     elif request.method == "DELETE":
+        # Only allow permanent deletion if it was already in Trash (soft-deleted)
         if email_obj.deleted:
             email_obj.delete()
             return HttpResponse(status=204)
@@ -127,6 +138,7 @@ def email(request, email_id):
     else:
         return JsonResponse({"error": "GET, PUT or DELETE request required."}, status=405)
 
+# Standard Auth views remain the same
 def login_view(request):
     if request.method == "POST":
         email = request.POST.get("email", "").strip()
@@ -137,8 +149,7 @@ def login_view(request):
             return HttpResponseRedirect(reverse("index"))
         else:
             return render(request, "mail/login.html", {"message": "Invalid email and/or password."})
-    else:
-        return render(request, "mail/login.html")
+    return render(request, "mail/login.html")
 
 def logout_view(request):
     logout(request)
@@ -150,22 +161,16 @@ def register(request):
         password = request.POST.get("password", "")
         confirmation = request.POST.get("confirmation", "")
 
-        if not email:
-            return render(request, "mail/register.html", {"message": "Email address is required."})
-        if not password:
-            return render(request, "mail/register.html", {"message": "Password is required."})
+        if not email or not password:
+            return render(request, "mail/register.html", {"message": "Email and password are required."})
         if password != confirmation:
             return render(request, "mail/register.html", {"message": "Passwords must match."})
 
         try:
             user = User.objects.create_user(username=email, email=email, password=password)
             user.save()
+            login(request, user)
+            return HttpResponseRedirect(reverse("index"))
         except IntegrityError:
-            return render(request, "mail/register.html", {"message": "Email address already taken."})
-        except ValueError:
-            return render(request, "mail/register.html", {"message": "Invalid username/email."})
-
-        login(request, user)
-        return HttpResponseRedirect(reverse("index"))
-    else:
-        return render(request, "mail/register.html")
+            return render(request, "mail/register.html", {"message": "Email already taken."})
+    return render(request, "mail/register.html")
