@@ -98,14 +98,20 @@ def email(request, email_id):
         return HttpResponse(status=204)
 
     elif request.method == "DELETE":
+        # Check if the email is already in Trash (deleted=True) before allowing permanent deletion
         if email_obj.deleted:
             email_obj.delete()
             return HttpResponse(status=204)
         else:
-            return JsonResponse({"error": "Move to Trash before permanent deletion."}, status=400)
+            return JsonResponse({
+                "error": "Move to Trash before permanent deletion."
+            }, status=400)
 
     else:
-        return JsonResponse({"error": "GET, PUT or DELETE request required."}, status=400)
+        return JsonResponse({
+            "error": "GET, PUT, or DELETE request required."
+        }, status=405)
+
 
 
 def login_view(request):
