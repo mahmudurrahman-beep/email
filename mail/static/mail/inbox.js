@@ -106,9 +106,13 @@ function show_view(view) {
 
 function setActiveNav(activeId) {
   document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+  // Manage body class for trash view so CSS can hide/show buttons
+  document.body.classList.remove('trash-view');
   if (activeId) {
     const el = document.querySelector(`#${activeId}`);
     if (el) el.classList.add('active');
+    // Add trash-view class when Trash is active
+    if (activeId === 'trash') document.body.classList.add('trash-view');
     updateToolbarTitle(activeId === 'archived' ? 'Archive' : activeId.charAt(0).toUpperCase() + activeId.slice(1));
   } else {
     updateToolbarTitle('');
@@ -313,21 +317,62 @@ function renderEmailView(email, container, currentMailbox) {
     }
   }
 
+  // Delete / Restore logic
   const deleteBtn = document.getElementById('delete-btn');
-  if (deleteBtn) {
-    deleteBtn.addEventListener('click', () => {
-      if (!SUPPORTS_TRASH) { show_notification('Delete not supported by server', 'error'); return; }
-      if (!email.deleted) {
-        updateEmail(email.id, { deleted: true })
-          .then(() => { showUndoToast('Moved to Trash', () => updateEmail(email.id, { deleted: false }).then(() => { show_notification('Restored', 'success'); load_mailbox('inbox'); setActiveNav('inbox'); })); load_mailbox('inbox'); setActiveNav('inbox'); })
-          .catch(() => show_notification('Failed to move to Trash', 'error'));
-      } else {
+  // If viewing Trash mailbox, show Restore button next to Delete Permanently
+  if (currentMailbox === 'trash') {
+    // Ensure delete button shows "Delete Permanently"
+    if (deleteBtn) deleteBtn.textContent = 'Delete Permanently';
+
+    // Create Restore button and insert before delete button
+    const restoreBtn = document.createElement('button');
+    restoreBtn.className = 'btn-action';
+    restoreBtn.id = 'restore-btn';
+    restoreBtn.textContent = 'Restore';
+    // Insert restore button into actions container
+    const actionsContainer = header.querySelector('.email-actions');
+    if (actionsContainer) actionsContainer.insertBefore(restoreBtn, deleteBtn);
+
+    // Wire restore action
+    restoreBtn.addEventListener('click', () => {
+      updateEmail(email.id, { deleted: false })
+        .then(() => {
+          show_notification('Restored to Inbox', 'success');
+          load_mailbox('inbox');
+          setActiveNav('inbox');
+        })
+        .catch(() => show_notification('Restore failed', 'error'));
+    });
+
+    // Wire permanent delete (confirm)
+    if (deleteBtn) {
+      deleteBtn.addEventListener('click', () => {
         if (!confirm('Permanently delete this message? This cannot be undone.')) return;
         fetch(`/emails/${email.id}`, { method: 'DELETE' })
           .then(res => { if (res.ok) { show_notification('Permanently deleted', 'success'); load_mailbox('trash'); setActiveNav('trash'); } else { show_notification('Permanent delete failed', 'error'); } })
           .catch(() => show_notification('Permanent delete failed', 'error'));
-      }
-    });
+      });
+    }
+  } else {
+    // Normal inbox/archive/sent behavior: move to trash or permanent delete if already deleted
+    if (deleteBtn) {
+      deleteBtn.addEventListener('click', () => {
+        if (!SUPPORTS_TRASH) { show_notification('Delete not supported by server', 'error'); return; }
+        if (!email.deleted) {
+          updateEmail(email.id, { deleted: true })
+            .then(() => {
+              showUndoToast('Moved to Trash', () => updateEmail(email.id, { deleted: false }).then(() => { show_notification('Restored', 'success'); load_mailbox('inbox'); setActiveNav('inbox'); }));
+              load_mailbox('inbox'); setActiveNav('inbox');
+            })
+            .catch(() => show_notification('Failed to move to Trash', 'error'));
+        } else {
+          if (!confirm('Permanently delete this message? This cannot be undone.')) return;
+          fetch(`/emails/${email.id}`, { method: 'DELETE' })
+            .then(res => { if (res.ok) { show_notification('Permanently deleted', 'success'); load_mailbox('trash'); setActiveNav('trash'); } else { show_notification('Permanent delete failed', 'error'); } })
+            .catch(() => show_notification('Permanent delete failed', 'error'));
+        }
+      });
+    }
   }
 
   const markBtn = document.getElementById('mark-btn');
@@ -352,8 +397,6 @@ function splitReplyAndQuote(body) {
   }
   return { replyText: body.trim(), quotedLines: [] };
 }
-
-
 
 /* Helpers for update actions */
 function updateEmail(id, payload) {
