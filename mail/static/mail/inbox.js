@@ -1,5 +1,5 @@
 // static/mail/inbox.js
-// Full client script with previous_mailbox-aware restore routing and clearer notifications.
+// Full client script (integrated with backend serialize fields)
 
 const MESSAGES = {
   send: { sending: 'Sending...', sent: 'Email sent.', failed: 'Failed to send email.' },
@@ -29,7 +29,6 @@ function initApp() {
   setActiveNav('inbox');
 }
 
-/* Feature detect Trash endpoint */
 function detectTrashSupport() {
   fetch('/emails/trash')
     .then(res => {
@@ -48,7 +47,6 @@ function detectTrashSupport() {
     });
 }
 
-/* Navigation & events */
 function setupNavigation() {
   const composeBtn = document.querySelector('#compose-btn') || document.querySelector('.compose-btn');
   if (composeBtn) composeBtn.addEventListener('click', () => { compose_email(); setActiveNav(null); });
@@ -61,20 +59,6 @@ function setupNavigation() {
     });
   });
 
-  if (!document.querySelector('#trash')) {
-    const nav = document.querySelector('.nav-menu');
-    if (nav) {
-      const div = document.createElement('div');
-      div.id = 'trash';
-      div.className = 'nav-item';
-      div.setAttribute('role', 'button');
-      div.tabIndex = 0;
-      div.innerHTML = `<svg class="nav-svg" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg><span class="nav-label">Trash</span>`;
-      nav.appendChild(div);
-      div.addEventListener('click', () => { load_mailbox('trash'); setActiveNav('trash'); });
-    }
-  }
-
   const cancelBtn = document.querySelector('#cancel-compose');
   if (cancelBtn) cancelBtn.addEventListener('click', () => { load_mailbox('inbox'); setActiveNav('inbox'); });
 }
@@ -84,7 +68,6 @@ function setupComposeForm() {
   if (form) form.addEventListener('submit', send_email);
 }
 
-/* Ensure email-view exists */
 function ensureViewsExist() {
   if (!document.querySelector('#email-view')) {
     const emailView = document.createElement('div');
@@ -95,7 +78,6 @@ function ensureViewsExist() {
   }
 }
 
-/* View management */
 function show_view(view) {
   const emailsView = document.querySelector('#emails-view');
   const composeView = document.querySelector('#compose-view');
@@ -135,7 +117,6 @@ function updateToolbarTitle(text) {
   if (title) title.textContent = text;
 }
 
-/* Compose */
 function compose_email(prefill = {}) {
   show_view('compose');
   const r = document.querySelector('#compose-recipients');
@@ -147,7 +128,6 @@ function compose_email(prefill = {}) {
   if (r && !prefill.recipients) setTimeout(() => r.focus(), 80);
 }
 
-/* Send */
 function send_email(event) {
   event.preventDefault();
   const recipients = (document.querySelector('#compose-recipients') || {}).value || '';
@@ -170,7 +150,6 @@ function send_email(event) {
     .catch(() => show_notification(MESSAGES.send.failed, 'error'));
 }
 
-/* Load mailbox */
 function load_mailbox(mailbox) {
   show_view('emails');
   const view = document.querySelector('#emails-view');
@@ -198,6 +177,7 @@ function load_mailbox(mailbox) {
     });
 }
 
+/* --- Key change: createEmailElement renders From for inbox and To for sent --- */
 function createEmailElement(email, mailbox) {
   const div = document.createElement('div');
   div.className = 'email-item ' + (email.read ? 'read' : 'unread');
@@ -206,12 +186,23 @@ function createEmailElement(email, mailbox) {
   const previewText = getReplyOnlyPreview(email.body || '');
   const ts = formatTimestamp(email.timestamp);
 
-  // Show "You" badge in lists when the current user owns the row
   const currentUser = window.CURRENT_USER_EMAIL || null;
-  const ownerBadge = (currentUser && currentUser === email.user) ? ' <span class="owner-badge">(You)</span>' : '';
+  const isOwner = !!email.is_owner || (currentUser && currentUser === email.user);
+  const ownerBadge = isOwner ? ' <span class="owner-badge">(You)</span>' : '';
+
+  // Prefer sender_email (readable), fallback to sender string
+  const senderDisplay = email.sender_email || email.sender || '(unknown)';
+  const recipientsDisplay = (email.recipient_emails && email.recipient_emails.length) ? email.recipient_emails.join(', ') : '(no recipients)';
+
+  let leftHtml;
+  if (mailbox === 'sent') {
+    leftHtml = `<div class="email-sender">To: ${escapeHtml(recipientsDisplay)}${ownerBadge}</div>`;
+  } else {
+    leftHtml = `<div class="email-sender">From: ${escapeHtml(senderDisplay)}${ownerBadge}</div>`;
+  }
 
   div.innerHTML = `
-    <div class="email-sender">${escapeHtml(email.sender)}${ownerBadge}</div>
+    ${leftHtml}
     <div class="email-content">
       <div class="email-subject">${escapeHtml(email.subject || '(no subject)')}</div>
       <div class="email-preview">${escapeHtml(previewText.substring(0, 120))}${previewText.length > 120 ? '...' : ''}</div>
@@ -242,7 +233,7 @@ function showEmptyState(mailbox, container) {
   container.appendChild(empty);
 }
 
-/* View single email with header + action bar */
+/* --- View single email and actions (uses is_owner and previous_mailbox) --- */
 function view_email(email_id, currentMailbox = null) {
   show_view('email');
   const view = document.querySelector('#email-view');
@@ -271,14 +262,13 @@ function renderEmailView(email, container, currentMailbox) {
   container.innerHTML = '';
 
   const currentUserEmail = window.CURRENT_USER_EMAIL || null;
-  const isOwner = currentUserEmail && currentUserEmail === email.user;
+  const isOwner = !!email.is_owner || (currentUserEmail && currentUserEmail === email.user);
 
   const header = document.createElement('div');
   header.className = 'email-detail-header';
 
-  // Show owner and original mailbox badge if available
   const original = email.previous_mailbox ? `Original: ${capitalize(email.previous_mailbox)}` : (email.archived ? 'Original: Archive' : (isOwner && email.sender === currentUserEmail ? 'Original: Sent' : 'Original: Inbox'));
-  const ownerLabel = isOwner ? 'You' : email.user;
+  const ownerLabel = isOwner ? 'You' : (email.user || '(owner)');
 
   header.innerHTML = `
     <div style="flex:1;min-width:0">
@@ -319,7 +309,6 @@ function renderEmailView(email, container, currentMailbox) {
   container.appendChild(header);
   container.appendChild(body);
 
-  // Actions wiring
   const replyBtn = document.getElementById('reply-btn');
   if (replyBtn) replyBtn.addEventListener('click', () => replyToEmailFromView(email.id));
 
@@ -360,20 +349,12 @@ function renderEmailView(email, container, currentMailbox) {
     if (actionsContainer) actionsContainer.insertBefore(restoreBtn, deleteBtn);
 
     restoreBtn.addEventListener('click', () => {
-      // Use previous_mailbox if present; otherwise infer
       const dest = email.previous_mailbox || (email.archived ? 'archive' : (isOwner && email.sender === currentUserEmail ? 'sent' : 'inbox'));
       updateEmail(email.id, { deleted: false })
         .then(() => {
-          if (dest === 'archive') {
-            show_notification(MESSAGES.restore.toArchive, 'success');
-            load_mailbox('archive'); setActiveNav('archived');
-          } else if (dest === 'sent') {
-            show_notification(MESSAGES.restore.toSent, 'success');
-            load_mailbox('sent'); setActiveNav('sent');
-          } else {
-            show_notification(MESSAGES.restore.toInbox, 'success');
-            load_mailbox('inbox'); setActiveNav('inbox');
-          }
+          if (dest === 'archive') { show_notification(MESSAGES.restore.toArchive, 'success'); load_mailbox('archive'); setActiveNav('archived'); }
+          else if (dest === 'sent') { show_notification(MESSAGES.restore.toSent, 'success'); load_mailbox('sent'); setActiveNav('sent'); }
+          else { show_notification(MESSAGES.restore.toInbox, 'success'); load_mailbox('inbox'); setActiveNav('inbox'); }
         })
         .catch(() => show_notification(MESSAGES.restore.failed, 'error'));
     });
@@ -415,7 +396,7 @@ function renderEmailView(email, container, currentMailbox) {
   });
 }
 
-/* Helpers and utilities (unchanged) */
+/* Helpers */
 function splitReplyAndQuote(body) {
   const lines = String(body).split('\n');
   const idx = lines.findIndex(l => /^On .+ wrote:$/i.test(l.trim()));
