@@ -8,7 +8,7 @@
 /* Reset & variables */
 * { box-sizing: border-box; margin: 0; padding: 0; }
 :root{
-  --primary:#ff5722; --primary-dark:#e64a19; --bg:#ffffff; --bg-gray:#f6f8fc;
+  --primary:#2196f3; --primary-dark:#1976d2; --bg:#ffffff; --bg-gray:#f6f8fc;
   --border:#dadce0; --text-dark:#202124; --text-medium:#5f6368; --shadow:rgba(60,64,67,0.06);
 }
 html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--text-dark);background:var(--bg);-webkit-font-smoothing:antialiased}
