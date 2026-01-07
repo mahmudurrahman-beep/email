@@ -60,19 +60,42 @@ def compose(request):
 
 @login_required
 def mailbox(request, mailbox):
+    # Filter emails based on the requested mailbox
     if mailbox == "inbox":
-        emails = Email.objects.filter(user=request.user, recipients=request.user, archived=False, deleted=False)
+        emails = Email.objects.filter(
+            user=request.user, 
+            recipients=request.user, 
+            archived=False, 
+            deleted=False
+        )
     elif mailbox == "sent":
-        emails = Email.objects.filter(user=request.user, sender=request.user, deleted=False)
+        # Exclude archived messages so they move to the Archive folder
+        emails = Email.objects.filter(
+            user=request.user, 
+            sender=request.user, 
+            archived=False, 
+            deleted=False
+        )
     elif mailbox == "archive":
-        emails = Email.objects.filter(user=request.user, recipients=request.user, archived=True, deleted=False)
+        # Include archived copies where user is either recipient OR sender
+        from django.db.models import Q
+        emails = Email.objects.filter(
+            user=request.user, 
+            archived=True, 
+            deleted=False
+        ).filter(Q(recipients=request.user) | Q(sender=request.user))
     elif mailbox == "trash":
-        emails = Email.objects.filter(user=request.user, deleted=True)
+        emails = Email.objects.filter(
+            user=request.user, 
+            deleted=True
+        )
     else:
         return JsonResponse({"error": "Invalid mailbox."}, status=400)
 
+    # Order emails by most recent first
     emails = emails.order_by("-timestamp").all()
     return JsonResponse([email.serialize() for email in emails], safe=False)
+
 
 
 @csrf_exempt
