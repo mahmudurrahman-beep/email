@@ -1,3 +1,4 @@
+# mail/views.py
 import json
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
@@ -110,7 +111,7 @@ def email(request, email_id):
 
 def login_view(request):
     if request.method == "POST":
-        email = request.POST.get("email", "")
+        email = request.POST.get("email", "").strip()
         password = request.POST.get("password", "")
         user = authenticate(request, username=email, password=password)
         if user is not None:
@@ -129,16 +130,30 @@ def logout_view(request):
 
 def register(request):
     if request.method == "POST":
-        email = request.POST.get("email", "")
+        # Basic validation to avoid creating users with empty username/email
+        email = (request.POST.get("email") or "").strip()
         password = request.POST.get("password", "")
         confirmation = request.POST.get("confirmation", "")
+
+        if not email:
+            return render(request, "mail/register.html", {"message": "Email address is required."})
+
+        if not password:
+            return render(request, "mail/register.html", {"message": "Password is required."})
+
         if password != confirmation:
             return render(request, "mail/register.html", {"message": "Passwords must match."})
+
         try:
-            user = User.objects.create_user(email, email, password)
+            # Use explicit keyword args to ensure username is set
+            user = User.objects.create_user(username=email, email=email, password=password)
             user.save()
         except IntegrityError:
             return render(request, "mail/register.html", {"message": "Email address already taken."})
+        except ValueError:
+            # Defensive: create_user can raise ValueError if username is invalid or empty
+            return render(request, "mail/register.html", {"message": "Invalid username/email."})
+
         login(request, user)
         return HttpResponseRedirect(reverse("index"))
     else:
