@@ -1,6 +1,6 @@
 /**
  * static/mail/inbox.js
- * Full implementation with polished inbox list design (Gmail-inspired distinction)
+ * Full implementation with robust quoted timestamp formatting (handles both old raw ISO and new formatted)
  */
 const MESSAGES = {
     send: { sending: 'Sending...', sent: 'Email sent successfully.', failed: 'Failed to send email.' },
@@ -133,7 +133,6 @@ function load_mailbox(mailbox) {
             const recipientsDisplay = email.recipients.map(r => r === userEmail ? 'You' : r).join(', ');
             const senderLabel = (mailbox === 'sent') ? `To: ${recipientsDisplay}` : senderDisplay;
 
-            // Clean preview (remove quoted reply text)
             let previewText = email.body.split('\n\nOn ')[0].replace(/\n/g, ' ').trim();
             if (previewText.length > 80) previewText = previewText.substring(0, 80) + '...';
             const preview = previewText ? previewText : '';
@@ -162,20 +161,29 @@ function formatBody(body) {
     let html = '';
     let inQuote = false;
     lines.forEach(line => {
-        if (line.startsWith('On ') && line.includes(', ') && line.includes(' wrote:')) {
+        // Robust regex: handles optional spaces around comma, detects raw ISO or formatted date
+        const match = line.match(/^On\s*(.+?)\s*,\s*(.+?)\s*wrote:\s*$/);
+        if (match) {
             if (inQuote) html += '</div>';
-            // Extract timestamp and sender
-            const match = line.match(/^On (.+?), (.+?) wrote:$/);
-            if (match) {
-                const rawTs = match[1];
-                const sender = match[2];
-                const formattedTs = formatTimestamp(rawTs);
-                line = `On ${formattedTs}, ${sender} wrote:`;
+            let rawTs = match[1].trim();
+            let sender = match[2].trim();
+            // If it looks like ISO (contains 'T' or '+'), parse and format
+            let formattedHeader = line;
+            if (rawTs.includes('T') || rawTs.includes('+') || rawTs.includes('.')) {
+                try {
+                    const parsedDate = new Date(rawTs);
+                    if (!isNaN(parsedDate)) {
+                        const formattedTs = formatTimestamp(parsedDate.toISOString());
+                        formattedHeader = `On ${formattedTs}, ${sender} wrote:`;
+                    }
+                } catch (e) {
+                    // If parsing fails, leave as-is
+                }
             }
-            html += '<div class="quoted-block"><span class="quote-header">' + escapeHtml(line) + '</span><br>';
+            html += '<div class="quoted-block"><span class="quote-header">' + escapeHtml(formattedHeader) + '</span><br>';
             inQuote = true;
         } else if (line.startsWith('> ')) {
-            html += escapeHtml(line.substring(2)) + '<br>'; 
+            html += escapeHtml(line.substring(2)) + '<br>';
         } else {
             if (inQuote) {
                 html += '</div>';
@@ -251,7 +259,7 @@ function view_email(id, mailbox) {
             </div>
             <div class="email-header-row">
                 <span class="header-label">To:</span>
-                <span>${escapeHtml(recipientDisplay)}</span>
+                <span>${escapeHtml(recipientsDisplay)}</span>
             </div>
             <div class="email-header-row">
                 <span class="header-label">Subject:</span>
@@ -294,6 +302,7 @@ function reply_email(email) {
     if (!subject.startsWith('Re: ')) {
         subject = `Re: ${subject}`;
     }
+    // Ensure formatted timestamp with space after comma
     let body = `\n\nOn ${formatTimestamp(email.timestamp)}, ${email.sender} wrote:\n${email.body.split('\n').map(line => `> ${line}`).join('\n')}`;
     compose_email({
         recipients: email.sender,
