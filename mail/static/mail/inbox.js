@@ -162,8 +162,16 @@ function formatBody(body) {
     let html = '';
     let inQuote = false;
     lines.forEach(line => {
-        if (line.startsWith('On ') && line.includes(' wrote:')) {
+        if (line.startsWith('On ') && line.includes(', ') && line.includes(' wrote:')) {
             if (inQuote) html += '</div>';
+            // Extract timestamp and sender
+            const match = line.match(/^On (.+?), (.+?) wrote:$/);
+            if (match) {
+                const rawTs = match[1];
+                const sender = match[2];
+                const formattedTs = formatTimestamp(rawTs);
+                line = `On ${formattedTs}, ${sender} wrote:`;
+            }
             html += '<div class="quoted-block"><span class="quote-header">' + escapeHtml(line) + '</span><br>';
             inQuote = true;
         } else if (line.startsWith('> ')) {
@@ -243,7 +251,7 @@ function view_email(id, mailbox) {
             </div>
             <div class="email-header-row">
                 <span class="header-label">To:</span>
-                <span>${escapeHtml(recipientsDisplay)}</span>
+                <span>${escapeHtml(recipientDisplay)}</span>
             </div>
             <div class="email-header-row">
                 <span class="header-label">Subject:</span>
