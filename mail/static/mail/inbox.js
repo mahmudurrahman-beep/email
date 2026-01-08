@@ -1,6 +1,6 @@
 /**
  * static/mail/inbox.js
- * Full implementation with improved quoted timestamp (always shows date for clarity)
+ * Full implementation with consistent full timestamps in detail view
  */
 const MESSAGES = {
     send: { sending: 'Sending...', sent: 'Email sent successfully.', failed: 'Failed to send email.' },
@@ -95,7 +95,7 @@ function escapeHtml(text) {
     div.textContent = text;
     return div.innerHTML;
 }
-// Main timestamp: smart (time only if today)
+// List timestamp: smart (time only if today, date otherwise)
 function formatTimestamp(ts) {
     const date = new Date(ts);
     const now = new Date();
@@ -105,13 +105,13 @@ function formatTimestamp(ts) {
     if (isToday) {
         return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
     } else if (isThisYear) {
-        return date.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
+        return date.toLocaleString('en-US', { month: 'short', day: 'numeric' });
     } else {
-        return date.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
+        return date.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     }
 }
-// Quoted timestamp: always show date + time for clarity in threads
-function formatQuotedTimestamp(ts) {
+// Full timestamp for detail header and quoted sections: always date + time
+function formatFullTimestamp(ts) {
     const date = new Date(ts);
     return date.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
 }
@@ -173,12 +173,11 @@ function formatBody(body) {
             let rawTs = match[1].trim();
             let sender = match[2].trim();
             let formattedTs = rawTs;
-            // Detect and format ISO/raw timestamps
             if (rawTs.includes('T') || rawTs.includes('+') || rawTs.includes('.')) {
                 try {
                     const parsedDate = new Date(rawTs);
                     if (!isNaN(parsedDate)) {
-                        formattedTs = formatQuotedTimestamp(parsedDate.toISOString());
+                        formattedTs = formatFullTimestamp(parsedDate.toISOString());
                     }
                 } catch (e) {}
             }
@@ -270,7 +269,7 @@ function view_email(id, mailbox) {
             </div>
             <div class="email-header-row">
                 <span class="header-label">Timestamp:</span>
-                <span>${formatTimestamp(email.timestamp)}</span>
+                <span>${formatFullTimestamp(email.timestamp)}</span>
             </div>
         `;
         view.appendChild(header);
@@ -305,8 +304,7 @@ function reply_email(email) {
     if (!subject.startsWith('Re: ')) {
         subject = `Re: ${subject}`;
     }
-    // Always show date in quoted header
-    let body = `\n\nOn ${formatQuotedTimestamp(email.timestamp)}, ${email.sender} wrote:\n${email.body.split('\n').map(line => `> ${line}`).join('\n')}`;
+    let body = `\n\nOn ${formatFullTimestamp(email.timestamp)}, ${email.sender} wrote:\n${email.body.split('\n').map(line => `> ${line}`).join('\n')}`;
     compose_email({
         recipients: email.sender,
         subject: subject,
