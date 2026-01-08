@@ -164,10 +164,10 @@ function formatBody(body) {
     lines.forEach(line => {
         if (line.startsWith('On ') && line.includes(' wrote:')) {
             if (inQuote) html += '</div>';
-            html += '<div class="quoted-block">' + escapeHtml(line) + '<br>';
+            html += '<div class="quoted-block"><span class="quote-header">' + escapeHtml(line) + '</span><br>';
             inQuote = true;
         } else if (line.startsWith('> ')) {
-            html += escapeHtml(line.substring(2)) + '<br>';  // Remove > prefix for clean display
+            html += escapeHtml(line.substring(2)) + '<br>'; 
         } else {
             if (inQuote) {
                 html += '</div>';
