@@ -1,6 +1,6 @@
 /**
  * static/mail/inbox.js
- * Full implementation with robust quoted timestamp formatting (handles both old raw ISO and new formatted)
+ * Full implementation with improved quoted timestamp (always shows date for clarity)
  */
 const MESSAGES = {
     send: { sending: 'Sending...', sent: 'Email sent successfully.', failed: 'Failed to send email.' },
@@ -95,6 +95,7 @@ function escapeHtml(text) {
     div.textContent = text;
     return div.innerHTML;
 }
+// Main timestamp: smart (time only if today)
 function formatTimestamp(ts) {
     const date = new Date(ts);
     const now = new Date();
@@ -104,10 +105,15 @@ function formatTimestamp(ts) {
     if (isToday) {
         return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
     } else if (isThisYear) {
-        return date.toLocaleString('en-US', { month: 'short', day: 'numeric' });
+        return date.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
     } else {
-        return date.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        return date.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
     }
+}
+// Quoted timestamp: always show date + time for clarity in threads
+function formatQuotedTimestamp(ts) {
+    const date = new Date(ts);
+    return date.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
 }
 function load_mailbox(mailbox) {
     show_view('emails');
@@ -161,26 +167,23 @@ function formatBody(body) {
     let html = '';
     let inQuote = false;
     lines.forEach(line => {
-        // Robust regex: handles optional spaces around comma, detects raw ISO or formatted date
         const match = line.match(/^On\s*(.+?)\s*,\s*(.+?)\s*wrote:\s*$/);
         if (match) {
             if (inQuote) html += '</div>';
             let rawTs = match[1].trim();
             let sender = match[2].trim();
-            // If it looks like ISO (contains 'T' or '+'), parse and format
-            let formattedHeader = line;
+            let formattedTs = rawTs;
+            // Detect and format ISO/raw timestamps
             if (rawTs.includes('T') || rawTs.includes('+') || rawTs.includes('.')) {
                 try {
                     const parsedDate = new Date(rawTs);
                     if (!isNaN(parsedDate)) {
-                        const formattedTs = formatTimestamp(parsedDate.toISOString());
-                        formattedHeader = `On ${formattedTs}, ${sender} wrote:`;
+                        formattedTs = formatQuotedTimestamp(parsedDate.toISOString());
                     }
-                } catch (e) {
-                    // If parsing fails, leave as-is
-                }
+                } catch (e) {}
             }
-            html += '<div class="quoted-block"><span class="quote-header">' + escapeHtml(formattedHeader) + '</span><br>';
+            const headerText = `On ${formattedTs}, ${sender} wrote:`;
+            html += '<div class="quoted-block"><span class="quote-header">' + escapeHtml(headerText) + '</span><br>';
             inQuote = true;
         } else if (line.startsWith('> ')) {
             html += escapeHtml(line.substring(2)) + '<br>';
@@ -302,8 +305,8 @@ function reply_email(email) {
     if (!subject.startsWith('Re: ')) {
         subject = `Re: ${subject}`;
     }
-    // Ensure formatted timestamp with space after comma
-    let body = `\n\nOn ${formatTimestamp(email.timestamp)}, ${email.sender} wrote:\n${email.body.split('\n').map(line => `> ${line}`).join('\n')}`;
+    // Always show date in quoted header
+    let body = `\n\nOn ${formatQuotedTimestamp(email.timestamp)}, ${email.sender} wrote:\n${email.body.split('\n').map(line => `> ${line}`).join('\n')}`;
     compose_email({
         recipients: email.sender,
         subject: subject,
