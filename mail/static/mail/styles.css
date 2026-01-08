@@ -150,3 +150,18 @@ body.no-sidebar .content-area {display:flex;align-items:center;justify-content:c
 
 /* Safety: no underlines anywhere in email rows */
 .email-row, .email-row * {text-decoration:none !important;}
+.quoted-block .quote-header {
+  font-weight: 600;
+  color: var(--text-dark);
+  margin-bottom: 8px;
+}
+.quoted-block {
+  margin-top: 12px;
+  padding: 10px 14px;
+  background: #f6f8fc;
+  border-left: 4px solid #dadce0;
+  font-size: 14px;
+  color: var(--text-medium);
+  white-space: pre-wrap;
+  border-radius: 4px;
+}
