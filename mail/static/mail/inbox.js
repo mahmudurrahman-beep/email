@@ -157,6 +157,28 @@ function load_mailbox(mailbox) {
         view.innerHTML = `<div class="error-state">${MESSAGES.load.failed(mailbox)}</div>`;
     });
 }
+function formatBody(body) {
+    const lines = body.split('\n');
+    let html = '';
+    let inQuote = false;
+    lines.forEach(line => {
+        if (line.startsWith('On ') && line.includes(' wrote:')) {
+            if (inQuote) html += '</div>';
+            html += '<div class="quoted-block">' + escapeHtml(line) + '<br>';
+            inQuote = true;
+        } else if (line.startsWith('> ')) {
+            html += escapeHtml(line.substring(2)) + '<br>';  // Remove > prefix for clean display
+        } else {
+            if (inQuote) {
+                html += '</div>';
+                inQuote = false;
+            }
+            html += escapeHtml(line) + '<br>';
+        }
+    });
+    if (inQuote) html += '</div>';
+    return html;
+}
 function view_email(id, mailbox) {
     show_view('email');
     const view = document.querySelector('#email-view');
@@ -233,10 +255,10 @@ function view_email(id, mailbox) {
             </div>
         `;
         view.appendChild(header);
-        const body = document.createElement('div');
-        body.className = 'email-body-content';
-        body.innerHTML = escapeHtml(email.body).replace(/\n/g, '<br>');
-        view.appendChild(body);
+        const bodyEl = document.createElement('div');
+        bodyEl.className = 'email-body-content';
+        bodyEl.innerHTML = formatBody(email.body);
+        view.appendChild(bodyEl);
         if (!email.read && mailbox !== 'sent' && mailbox !== 'trash') {
             fetch(`/emails/${id}`, {
                 method: 'PUT',
