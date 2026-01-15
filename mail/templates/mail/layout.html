@@ -5,6 +5,15 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>{% block title %}Mail{% endblock %}</title>
+    
+    <!-- Favicon Configuration -->
+    <link rel="icon" href="{% static 'mail/icons/favicon.ico' %}" sizes="any">
+    <link rel="icon" href="{% static 'mail/icons/favicon.svg' %}" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="{% static 'mail/icons/apple-touch-icon.png' %}">
+    <link rel="manifest" href="{% static 'mail/icons/site.webmanifest' %}">
+    <meta name="theme-color" content="#ffffff">
+    
+    <!-- Existing CSS and scripts -->
     <link rel="stylesheet" href="{% static 'mail/styles.css' %}">
     
     {% block script %}{% endblock %}
